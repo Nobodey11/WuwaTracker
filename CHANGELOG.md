@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 (2026-10-26): banner card art
+- Banner cards on the Tracker tab show portrait art faded into the card (like wuwatracker):
+  the current featured character for the Featured Resonator banner (from game data), otherwise your latest 5★
+  on that banner (weapons by resourceId). Hover the art to see who it is.
+- Prydwen character list (card art for every character) is cached alongside the tier list.
+
 ## 0.3.0 (2026-10-26): Prydwen tab + portraits
 - New **Prydwen** tab: the prydwen.gg Wuthering Waves tier list (Tower of Adversity) by tier and role, with
   element, trend (▲ ▼ NEW), tags, search, "only mine" filter, and owned badges (S0–S6 / ×n from your pulls).

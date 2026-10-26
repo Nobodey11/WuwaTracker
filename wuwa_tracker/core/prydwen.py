@@ -225,6 +225,25 @@ def parse_tier_list(html: str) -> TierList:
     return TierList(tiers=list(dict.fromkeys(tiers)), entries=entries, fetched=time.time())
 
 
+def parse_character_list(html: str) -> dict[str, dict]:
+    """Characters page -> {key(name): {name, slug, card, element, rarity}} (card = 280x400 portrait art)."""
+    root = parse_html(html)
+    out = {}
+    for a in root.find_all("a", pred=lambda n: n.attrs.get("href", "").startswith("/wuthering-waves/characters/")):
+        imgs = a.find_all("img")
+        if not imgs:
+            continue
+        name = imgs[0].attrs.get("alt") or a.clean_text()
+        avatar = a.find("div", "avatar")
+        out[key(name)] = {"name": name, "slug": a.attrs["href"].rstrip("/").rsplit("/", 1)[-1],
+                          "card": imgs[0].attrs.get("src", ""),
+                          "element": imgs[1].attrs.get("alt", "") if len(imgs) > 1 else "",
+                          "rarity": _rarity(avatar) if avatar else 0}
+    if not out:
+        raise ValueError("Character list is empty (Prydwen layout changed?)")
+    return out
+
+
 def parse_character(html: str, slug: str) -> CharacterInfo:
     root = parse_html(html)
     info = CharacterInfo(name=slug, slug=slug, url=CHAR_URL.format(slug=slug), fetched=time.time())
@@ -340,6 +359,28 @@ class Prydwen:
             return asdict(parse_character(self._get(CHAR_URL.format(slug=slug)).decode("utf-8", "replace"), slug))
         data, _ = self._cached_json(f"char_{slug}", TTL_CHAR, fetch, force)
         return CharacterInfo(**data)
+
+    def character_list(self, force: bool = False) -> dict[str, dict]:
+        def fetch():
+            return {"fetched": time.time(),
+                    "chars": parse_character_list(self._get(CHARS_URL).decode("utf-8", "replace"))}
+        data, _ = self._cached_json("characters", TTL_CHAR, fetch, force)
+        return data["chars"]
+
+    def cached_character_list(self) -> dict[str, dict]:
+        path = self.dir / "characters.json"
+        if not path.exists():
+            return {}
+        return json.loads(path.read_text(encoding="utf-8")).get("chars", {})
+
+    def card_url(self, name: str, resource_id: int | None = None) -> str | None:
+        """Large portrait art for banner cards: character card art, weapon icon, or tier-list icon."""
+        if resource_id and resource_id >= WEAPON_ID_MIN:
+            return WEAPON_ICON.format(rid=resource_id)
+        c = self.cached_character_list().get(key(name))
+        if c and c.get("card"):
+            return c["card"]
+        return self.portrait_url(name)
 
     def cached_tier_list(self) -> TierList | None:
         path = self.dir / "tierlist.json"

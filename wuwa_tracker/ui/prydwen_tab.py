@@ -146,7 +146,14 @@ class PrydwenTab(QWidget):
             return
         self.status.setText("Loading tier list from prydwen.gg…")
         self.refresh_btn.setEnabled(False)
-        self._run(lambda: self.state.prydwen.tier_list(force=force), self.on_tier_list)
+        def fetch():
+            tl = self.state.prydwen.tier_list(force=force)
+            try:
+                self.state.prydwen.character_list(force=force)     # card art for the banner cards
+            except Exception:
+                pass
+            return tl
+        self._run(fetch, self.on_tier_list)
 
     def on_tier_list(self, tl, err):
         self.refresh_btn.setEnabled(True)

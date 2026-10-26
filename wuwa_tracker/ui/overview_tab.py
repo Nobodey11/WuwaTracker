@@ -13,12 +13,19 @@ RESULT_BADGE = {"won": ("WON 50/50", T.GREEN), "lost": ("LOST 50/50", T.RED), "g
 class BannerCard(QFrame):
     clicked = Signal(int)
 
+    ART_W = 150
+
     def __init__(self, pool_type: int):
         super().__init__()
         self.pool_type = pool_type
         self.setObjectName("bannerCard")
         self.setCursor(Qt.PointingHandCursor)
         self.setFixedHeight(128)
+        # portrait art on the right, faded into the card on its left edge (like wuwatracker)
+        self.art = QLabel(self)
+        self.art.setStyleSheet("background: transparent; border: none;")
+        self.fade = QLabel(self)
+        self._fade_color(T.CARD)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(16, 10, 16, 10)
         lay.setSpacing(0)
@@ -41,6 +48,29 @@ class BannerCard(QFrame):
         lay.addStretch()
         lay.addWidget(self.name)
         lay.addWidget(self.extra)
+        for w in (self.p5, self.p4, self.name, self.extra, l5, l4):
+            w.setStyleSheet(w.styleSheet() + "background: transparent;")
+            w.raise_()
+
+    def _fade_color(self, hexcol):
+        c = hexcol.lstrip("#")
+        r, g, b = int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16)
+        self.fade.setStyleSheet(
+            f"border:none; background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba({r},{g},{b},255), "
+            f"stop:0.55 rgba({r},{g},{b},120), stop:1 rgba({r},{g},{b},0));")
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        x = self.width() - self.ART_W - 1
+        self.art.setGeometry(x, 1, self.ART_W, self.height() - 2)
+        self.fade.setGeometry(x, 1, 95, self.height() - 2)
+        self.art.lower()
+        self.fade.stackUnder(self.p5)
+
+    def set_art(self, images, url, tooltip):
+        self.art.setToolTip(tooltip)
+        if url:
+            images.set_on(self.art, url, self.ART_W, 126, cover=True)
 
     def update_stats(self, s, rates):
         self.p5.setText(f"{s.pity5}/{rates['hard_pity5']}")
@@ -52,6 +82,7 @@ class BannerCard(QFrame):
         self.extra.setText(f"{s.total_pulls:,} pulls{g}")
 
     def set_selected(self, on: bool):
+        self._fade_color(T.CARD2 if on else T.CARD)
         self.setProperty("selected", "true" if on else "false")
         self.style().unpolish(self); self.style().polish(self)
 
@@ -182,6 +213,19 @@ class OverviewTab(QWidget):
             c.set_selected(k == pt)
         self.show_banner()
 
+    def banner_art(self, s):
+        """Which character/weapon to show on a banner card: the current featured 5★ for event banners
+        (from game data), otherwise your most recent 5★ on that banner."""
+        cur = self.state.gd.current_banners()
+        if s.kind == "featured_character" and cur:
+            names = cur[0].get("featured_5star_resonators") or []
+            if names:
+                return names[0], None, f"Current featured: {names[0]} ({cur[0]['patch']} phase {cur[0].get('phase')})"
+        if s.five_stars:
+            f = s.five_stars[-1]
+            return f.name, f.resource_id, f"Your latest 5✦ here: {f.name} (pity {f.pity})"
+        return None, None, ""
+
     def show_next(self, s):
         odds = pr.next_pulls(self.state.hazard(), s.pity5, s.guaranteed, s.featured_chance, s.pity4,
                              self.state.gd.rates)
@@ -222,6 +266,10 @@ class OverviewTab(QWidget):
         for pt, s in self.state.stats.items():
             c = BannerCard(pt)
             c.update_stats(s, self.state.gd.rates)
+            if self.state.prydwen_on():
+                name, rid, tip = self.banner_art(s)
+                if name:
+                    c.set_art(self.state.images, self.state.prydwen.card_url(name, rid), tip)
             c.clicked.connect(self.select)
             self.left.addWidget(c)
             self.cards[pt] = c

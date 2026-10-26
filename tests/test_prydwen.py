@@ -64,3 +64,16 @@ def test_ai_tool_prydwen_character(tmp_path, monkeypatch):
     assert r["tier_list_rating"] == "T0" and r["role"] == "DPS" and r["copies_owned_from_pulls"] == 2
     assert r["best_weapons"][0] == "Blooming Jadehaven (R1)" and r["echo_sets"] == ["Heart of Sworn Vigil"]
     assert "error" in tb.run("prydwen_character", {"name": "Nobody"})
+
+
+def test_character_list_and_card_art(tmp_path, monkeypatch):
+    chars = pw.parse_character_list((FX / "prydwen_characters.html").read_text(encoding="utf-8"))
+    c = chars[pw.key("Calcharo")]
+    assert c["card"].endswith("kakarot_card.webp") and c["rarity"] == 5 and c["element"] == "Electro"
+    assert chars[pw.key("Aalto")]["rarity"] == 4
+    p = pw.Prydwen(tmp_path)
+    monkeypatch.setattr(p, "_get", lambda url: (FX / "prydwen_characters.html").read_bytes())
+    p.character_list()
+    assert p.card_url("Yangyang: Xuanling").endswith("yangyang-xuanling_card.webp")
+    assert p.card_url("Spectral Trigger", 21030056).endswith("/weapons/21030056.webp")
+    assert p.card_url("Unknown") is None
