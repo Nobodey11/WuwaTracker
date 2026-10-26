@@ -109,7 +109,7 @@ class PrydwenTab(QWidget):
         left.addWidget(sc, 1)
         credit = QLabel("Tier list, ratings and images © <a style='color:#f5c518' href='https://www.prydwen.gg/wuthering-waves'>"
                         "Prydwen.gg</a> · game art © Kuro Games. Loaded on demand and cached; open the guides on Prydwen "
-                        "for the full reviews and builds.")
+                        "for the full reviews and builds. Not affiliated with Prydwen.gg · personal use only.")
         credit.setObjectName("muted"); credit.setOpenExternalLinks(True); credit.setWordWrap(True)
         left.addWidget(credit)
         root.addLayout(left, 1)

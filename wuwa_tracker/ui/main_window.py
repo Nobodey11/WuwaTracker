@@ -129,6 +129,8 @@ class MainWindow(QMainWindow):
         add("Check for game data updates", lambda: self.check_gamedata(True), "F5")
         add("Classify new content…", lambda: self.ask_new_content(only_if_any=False))
         add("About game data…", self.about_gamedata)
+        m.addSeparator()
+        add("About / disclaimer…", self.about)
 
     # ---------- game data ----------
     def refresh_gd_label(self):
@@ -173,6 +175,18 @@ class MainWindow(QMainWindow):
             dlg.apply(self.state.gd_store)
             self.state.reload_gamedata()
             self.statusBar().showMessage("New content saved to your game data.", 8000)
+
+    def about(self):
+        from .. import __version__
+        QMessageBox.about(self, "About WuWa Pull Tracker",
+            f"<h3>WuWa Pull Tracker {__version__}</h3>"
+            "<p>Unofficial fan project, <b>strictly for personal use</b>.</p>"
+            "<p>Based on the <a href='https://wuwatracker.com'>WuWa Tracker</a> pull tracker, but <b>not affiliated "
+            "with, endorsed by or connected to WuWa Tracker, Prydwen.gg or Kuro Games</b>.</p>"
+            "<p>Tier lists, ratings and images in the Prydwen tab belong to "
+            "<a href='https://www.prydwen.gg/wuthering-waves'>Prydwen.gg</a>. Wuthering Waves names and art "
+            "© Kuro Games.</p><p>Odds are estimates; provided as is, without warranty.</p>"
+            "<p><a href='https://github.com/Nobodey11/WuwaTracker'>github.com/Nobodey11/WuwaTracker</a></p>")
 
     def about_gamedata(self):
         gd = self.state.gd

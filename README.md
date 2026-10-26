@@ -6,7 +6,9 @@
 
 ![Tracker tab](docs/screenshot_tracker.png)
 
-A desktop version of wuwatracker.com's tracker with an exact probability calculator and a local AI assistant.
+A desktop pull tracker based on the [WuWa Tracker](https://wuwatracker.com) pull tracker, with an exact probability calculator and a local AI assistant.
+
+> **Disclaimer:** This is an unofficial, fan-made project **for personal use only**. It is inspired by and based on the [WuWa Tracker](https://wuwatracker.com) pull tracker (it reads its export format), but it is **not affiliated with, endorsed by or connected to WuWa Tracker (wuwatracker.com), Prydwen.gg, or Kuro Games**. Wuthering Waves and all related names, characters and art are trademarks and © of Kuro Games. Tier lists, ratings and images shown in the Prydwen tab belong to Prydwen.gg and are only loaded for personal viewing, with links back to their site. See [DISCLAIMER.md](DISCLAIMER.md).
 
 ## Quick start (Windows)
 
@@ -73,3 +75,7 @@ python -m pytest tests          # set WUWA_SAMPLE=path\to\export.json to also ch
 python -m wuwa_tracker.app --import path\to\export.json
 ```
 See `PLAN.md` for the architecture and the improvement backlog.
+
+## Disclaimer
+This is an unofficial, fan-made project **for personal use only**. It is inspired by and based on the [WuWa Tracker](https://wuwatracker.com) pull tracker (it reads its export format), but it is **not affiliated with, endorsed by or connected to WuWa Tracker (wuwatracker.com), Prydwen.gg, or Kuro Games**. Wuthering Waves and all related names, characters and art are trademarks and © of Kuro Games. Tier lists, ratings and images shown in the Prydwen tab belong to Prydwen.gg and are only loaded for personal viewing, with links back to their site.
+No warranty: odds are estimates (the soft-pity curve is not officially published). Use at your own risk.

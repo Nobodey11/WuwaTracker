@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2 (2026-10-26): disclaimer
+- Added DISCLAIMER.md, a README notice and Help → About: based on the WuWa Tracker pull tracker, not affiliated with
+  WuWa Tracker, Prydwen.gg or Kuro Games, strictly for personal use.
+
 ## 0.3.1 (2026-10-26): banner card art
 - Banner cards on the Tracker tab show portrait art faded into the card (like wuwatracker):
   the current featured character for the Featured Resonator banner (from game data), otherwise your latest 5★
