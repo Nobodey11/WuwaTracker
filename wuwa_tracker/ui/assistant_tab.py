@@ -57,7 +57,9 @@ class AssistantTab(QWidget):
         self.state = state
         self.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         self.worker = None
-        self.toolbox = ToolBox(lambda: self.state.stats, lambda: self.state.hazard(), lambda: self.state.gd)
+        self.toolbox = ToolBox(lambda: self.state.stats, lambda: self.state.hazard(), lambda: self.state.gd,
+                               lambda: self.state.prydwen if self.state.prydwen_on() else None,
+                               lambda: self.state.owned_snapshot)
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(20, 16, 20, 16)

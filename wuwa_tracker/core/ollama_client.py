@@ -18,6 +18,7 @@ Rules:
 - NEVER calculate probabilities yourself. Always call the tools; they run an exact model on the user's real pull data.
 - Use get_overview first if you don't know which banners exist or what the current pity is.
 - Use get_banner_schedule for questions about current/upcoming banners or patches.
+- Use prydwen_character to judge how strong a character is (Prydwen tier list) before recommending a pull; credit Prydwen.
 - 1 pull = 160 Astrite. Character banner: 50/50 on the first 5★, guaranteed after a loss. Weapon banner: 5★ is always the featured weapon. Hard pity 80.
 - The soft-pity curve after pull 66 is a community estimate, not official; say so when it matters.
 - Answer concisely, with the key numbers in bold. Answer in the user's language (Dutch or English)."""
@@ -62,6 +63,10 @@ TOOLS = [
         "description": "Current and upcoming banners from the game data (patch, phase, dates, featured 5★/4★), plus the game-data version.",
         "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {
+        "name": "prydwen_character",
+        "description": "Prydwen.gg tier-list rating, role, tags, best weapons and echo sets for a character (e.g. to judge whether a banner is worth pulling). Also says how many copies the user owns.",
+        "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
+    {"type": "function", "function": {
         "name": "astrite_to_pulls",
         "description": "Convert Astrite (and optional Radiant/Forging Tides already owned) into number of pulls.",
         "parameters": {"type": "object", "properties": {
@@ -73,10 +78,13 @@ class ToolBox:
     """Executes tool calls against the app's current data."""
 
     def __init__(self, stats_provider: Callable[[], dict[int, BannerStats]], hazard_provider: Callable[[], object],
-                 gamedata_provider: Callable[[], object] | None = None):
+                 gamedata_provider: Callable[[], object] | None = None, prydwen_provider: Callable[[], object] | None = None,
+                 owned_provider: Callable[[], dict] | None = None):
         self.stats = stats_provider
         self.hazard = hazard_provider
         self.gamedata = gamedata_provider
+        self.prydwen = prydwen_provider
+        self.owned = owned_provider
 
     def _banner(self, pool_type: int) -> BannerStats | None:
         return self.stats().get(int(pool_type))
@@ -143,6 +151,30 @@ class ToolBox:
         gd = self.gamedata()
         return {"game_data_version": gd.version, "game_patch": gd.patch, "today": __import__("datetime").date.today().isoformat(),
                 "current": gd.current_banners(), "upcoming": gd.upcoming_banners()}
+
+    def t_prydwen_character(self, name):
+        if not self.prydwen or not self.prydwen():
+            return {"error": "Prydwen integration is turned off"}
+        from .prydwen import key
+        pw = self.prydwen()
+        tl = pw.tier_list()
+        e = tl.by_key().get(key(name))
+        if not e:
+            close = [x.name for x in tl.entries if key(name)[:4] in key(x.name)][:5]
+            return {"error": f"'{name}' not found in the Prydwen tier list", "did_you_mean": close}
+        out = {"name": e.name, "tier_list_rating": e.tier, "tier_list_mode": tl.mode, "role": e.role,
+               "rating_assumes_sequence": e.sequence, "element": e.element, "rarity": e.rarity, "tags": e.tags,
+               "trend": e.mark or None, "source": "prydwen.gg", "guide_url": f"https://www.prydwen.gg/wuthering-waves/characters/{e.slug}"}
+        try:
+            c = pw.character(e.slug)
+            out.update({"ratings": [{"role": r["role"], **r["ratings"]} for r in c.roles],
+                        "best_weapons": [w["name"] + (f" (R{w['refine']})" if w["refine"] else "") for w in c.weapons[:5]],
+                        "echo_sets": [s["name"] for s in c.echo_sets[:3]], "guide_updated": c.updated})
+        except Exception as ex:
+            out["details_error"] = str(ex)
+        if self.owned:
+            out["copies_owned_from_pulls"] = self.owned().get(key(e.name), 0)
+        return out
 
     def t_astrite_to_pulls(self, astrite, tides=0):
         return {"pulls": int(astrite) // ASTRITE_PER_PULL + int(tides or 0),

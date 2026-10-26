@@ -32,6 +32,12 @@ The app reads the history link from the game log and downloads your records, lik
 Set **Server region** correctly (the reset timers in your wuwatracker screenshot point to **Asia, UTC+8**),
 because the game API returns server-local times.
 
+## Prydwen.gg
+The **Prydwen** tab and the portraits use [Prydwen.gg](https://www.prydwen.gg/wuthering-waves)'s public pages. They are
+fetched only when needed, cached locally, credited, and linked back to the full guides. Nothing from Prydwen is
+stored in this repository (except two trimmed page snapshots used as parser test fixtures). Turn it off in Settings if
+you prefer. If Prydwen changes its page layout, the tab shows an error and the parser in `core/prydwen.py` needs an update.
+
 ## Staying up to date every patch
 All patch-specific data (banners, new characters, standard pool, banner types, pity rates) lives in
 `wuwa_tracker/data/game_data.json`, not in the code.
@@ -48,6 +54,7 @@ All patch-specific data (banners, new characters, standard pool, banner types, p
 | Tracker | Banner cards with 5✦/4✦ pity, totals, Astrite, average featured pity, 50/50 record, luck vs. model, 5✦ list and pity chart |
 | Pull History | Searchable, sortable table with rarity and banner filters |
 | Probability | Chance of N featured copies within X pulls (or Astrite + Tides) from your current pity/guarantee, plus expected pulls, 50/90/100 % thresholds and charts |
+| Prydwen | Prydwen.gg tier list with portraits, owned badges and per-character ratings, best weapons and echo sets (links to the full guide) |
 | AI Assistant | Chat with a local Ollama model that calls the app's tools (`get_overview`, `featured_probability`, `pulls_needed`, …) |
 | Settings | Ollama host, pity model, game folder, server region, standard 5✦ list, banner names |
 

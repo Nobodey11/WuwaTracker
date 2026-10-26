@@ -40,6 +40,7 @@ class FiveStarEvent:
     time: datetime
     pull_number: int            # 1-based index on that banner
     result: str = ""            # "won", "lost", "guaranteed" or "" (non-50/50 banner)
+    resource_id: int = 0        # game id (weapons >= 100000), used for portraits
 
 
 @dataclass

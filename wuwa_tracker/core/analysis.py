@@ -52,7 +52,7 @@ def banner_stats(pool_type: int, pulls: list[Pull], gd: GameData | None = None) 
                 else:
                     result = "won"
                     s.wins += 1
-            s.five_stars.append(FiveStarEvent(p.name, s.pity5, p.time, i, result))
+            s.five_stars.append(FiveStarEvent(p.name, s.pity5, p.time, i, result, p.resource_id))
             s.count5 += 1
             s.pity5 = 0
             s.pity4 = 0          # a 5★ also resets the 4★ counter (matches wuwatracker)

@@ -41,6 +41,7 @@ QHeaderView::section {{ background: {CARD}; color: {MUTED}; border: none; border
                         padding: 6px; font-weight: 600; }}
 QCheckBox::indicator {{ width: 16px; height: 16px; }}
 QScrollArea {{ border: none; background: transparent; }}
+QScrollArea > QWidget > QWidget#scrollInner {{ background: transparent; }}
 QScrollBar:vertical {{ background: {BG}; width: 10px; }}
 QScrollBar::handle:vertical {{ background: {BORDER}; border-radius: 5px; min-height: 30px; }}
 QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; }}

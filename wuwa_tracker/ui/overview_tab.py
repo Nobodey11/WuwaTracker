@@ -59,14 +59,22 @@ class BannerCard(QFrame):
         self.clicked.emit(self.pool_type)
 
 
-def five_star_chip(f, patch: str | None = None) -> QFrame:
+def five_star_chip(f, patch: str | None = None, state=None) -> QFrame:
     w = QFrame()
     w.setStyleSheet(f"QFrame {{ background:{T.CARD2}; border:1px solid {T.BORDER}; border-radius:8px; }}")
     w.setToolTip(f"{f.name}\nPity {f.pity}\n{f.time.astimezone().strftime('%Y-%m-%d %H:%M')}"
                  + (f"\n{f.result}" if f.result else "") + (f"\nPatch {patch}" if patch else ""))
     h = QHBoxLayout(w)
-    h.setContentsMargins(10, 6, 6, 6)
+    h.setContentsMargins(6, 4, 6, 4)
     h.setSpacing(8)
+    if state is not None:
+        icon = QLabel()
+        icon.setFixedSize(40, 40)
+        icon.setStyleSheet(f"border:none; border-radius:20px; background:{T.CARD};")
+        icon.setAlignment(Qt.AlignCenter)
+        h.addWidget(icon)
+        if state.prydwen_on():
+            state.images.set_on(icon, state.prydwen.portrait_url(f.name, f.resource_id), 40)
     star = "★ " if f.result in ("won", "guaranteed", "") else ""
     n = QLabel(star + f.name)
     n.setStyleSheet(f"border:none; font-weight:600; color:{T.GOLD if star else T.MUTED};")
@@ -251,7 +259,7 @@ class OverviewTab(QWidget):
 
         clear_layout(self.chips)
         for f in reversed(s.five_stars):
-            self.chips.addWidget(five_star_chip(f, self.state.gd.patch_of(f.time)))
+            self.chips.addWidget(five_star_chip(f, self.state.gd.patch_of(f.time), self.state))
         if not s.five_stars:
             self.chips.addWidget(QLabel("No 5✦ yet on this banner."))
 

@@ -19,6 +19,7 @@ DEFAULTS = {
     # Raw URL of a game_data.json you keep up to date (e.g. on GitHub). Checked on start-up.
     "gamedata_url": "https://raw.githubusercontent.com/Nobodey11/WuwaTracker/main/wuwa_tracker/data/game_data.json",
     "gamedata_autocheck": True,
+    "prydwen_enabled": True,      # tier list, character info and portraits from prydwen.gg
 }
 
 # Banner kinds that share the normal 5★ rate table (used to fit the curve on your own data)
@@ -37,6 +38,10 @@ class AppState(QObject):
         # in-memory settings cache: background threads (AI assistant) must not touch SQLite
         self._settings = {k: storage.get_setting(k, v) for k, v in DEFAULTS.items()}
         self.gd_store = GameDataStore(storage.path.parent)
+        from ..core.prydwen import Prydwen
+        from .images import ImageLoader
+        self.prydwen = Prydwen(storage.path.parent / "prydwen")
+        self.images = ImageLoader(self.prydwen, self.prydwen_on)
         self.gd: GameData = self.gd_store.load()
         self.reload()
 
@@ -56,6 +61,18 @@ class AppState(QObject):
             p = players[0] if players else ""
         return p
 
+    def prydwen_on(self) -> bool:
+        return bool(self.get("prydwen_enabled"))
+
+    def owned(self) -> dict[str, int]:
+        """normalised name -> number of copies pulled (characters and weapons)."""
+        from ..core.prydwen import key
+        out: dict[str, int] = {}
+        for p in self.pulls:
+            if p.quality >= 4:
+                out[key(p.name)] = out.get(key(p.name), 0) + 1
+        return out
+
     def reload_gamedata(self):
         self.gd = self.gd_store.load()
         self.reload()
@@ -63,6 +80,7 @@ class AppState(QObject):
     def reload(self):
         self.pulls = self.storage.load(self.player or None)
         self.stats = all_stats(self.pulls, self.gd)
+        self.owned_snapshot = self.owned()      # read by the AI worker thread
         self.changed.emit()
 
     def unknown_content(self):

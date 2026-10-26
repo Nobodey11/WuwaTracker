@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 (2026-10-26): Prydwen tab + portraits
+- New **Prydwen** tab: the prydwen.gg Wuthering Waves tier list (Tower of Adversity) by tier and role, with
+  element, trend (▲ ▼ NEW), tags, search, "only mine" filter, and owned badges (S0–S6 / ×n from your pulls).
+- Click a character to see the Prydwen ratings (ToA / Whimpering Wastes / value), best weapons (✓ if owned),
+  echo sets and portrait, plus a button to open the full guide on prydwen.gg.
+- Portraits on the Tracker tab's 5★ list (characters via the Prydwen tier list, weapons by game resourceId).
+- Everything is fetched on demand and cached in %APPDATA%\WuwaTracker\prydwen (tier list 12 h, characters 3 days,
+  images once); works offline from cache. Can be turned off in Settings.
+- AI assistant tool `prydwen_character` (rating, role, best weapons, copies owned).
+- Automatic game-data checks no longer show an error in the status bar when offline.
+
 ## 0.2.1 (2026-10-26): odds for the next 1 and next 10 pulls
 - New "Your next pulls" card on the Tracker tab: chance of any 5★, the featured 5★ (50/50 or guarantee aware)
   and a 4★-or-better on the very next pull and within the next 10 pulls, for the selected banner.

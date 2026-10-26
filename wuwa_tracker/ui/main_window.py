@@ -14,6 +14,7 @@ from .calculator_tab import CalculatorTab
 from .history_tab import HistoryTab
 from .new_content_dialog import NewContentDialog
 from .overview_tab import OverviewTab
+from .prydwen_tab import PrydwenTab
 from .settings_tab import SettingsTab
 
 
@@ -87,6 +88,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(OverviewTab(state), "Tracker")
         self.tabs.addTab(HistoryTab(state), "Pull History")
         self.tabs.addTab(CalculatorTab(state), "Probability")
+        self.tabs.addTab(PrydwenTab(state), "Prydwen")
         self.tabs.addTab(AssistantTab(state), "AI Assistant")
         self.tabs.addTab(SettingsTab(state, lambda m: self.statusBar().showMessage(m, 8000), self.check_gamedata),
                          "Settings")
@@ -146,13 +148,14 @@ class MainWindow(QMainWindow):
                                         "Without a URL the app still detects new characters/banners from your pulls "
                                         "and asks you to classify them.")
             return
-        self.statusBar().showMessage("Checking for game data updates…")
+        self.statusBar().showMessage("Checking for game data updates…", 5000)
         self.gdw = GameDataUpdateWorker(self.state.gd_store, url)
         self.gdw.done.connect(lambda updated, msg: self.on_gamedata_checked(updated, msg, manual))
         self.gdw.start()
 
     def on_gamedata_checked(self, updated, msg, manual):
-        self.statusBar().showMessage(msg, 10000)
+        if updated or manual:          # silent when an automatic check finds nothing / is offline
+            self.statusBar().showMessage(msg, 10000)
         if updated:
             self.state.reload_gamedata()
             self.ask_new_content(only_if_any=True)
