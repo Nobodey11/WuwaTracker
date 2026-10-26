@@ -20,6 +20,8 @@ class _Job(QRunnable):
 
 
 class ImageLoader(QObject):
+    ready = Signal(str)          # url finished loading (success or failure)
+
     def __init__(self, prydwen, enabled=lambda: True):
         super().__init__()
         self.prydwen = prydwen
@@ -46,6 +48,17 @@ class ImageLoader(QObject):
         if first:
             self.pool.start(_Job(self.prydwen, url, self.signals))
 
+    def cached(self, url: str | None):
+        """Pixmap if already loaded, else None (and starts loading it; listen to `ready`)."""
+        if not url or url in self.failed or not self.enabled():
+            return None
+        if url in self.cache:
+            return self.cache[url]
+        if url not in self.waiting:
+            self.waiting[url] = []
+            self.pool.start(_Job(self.prydwen, url, self.signals))
+        return None
+
     def _done(self, url, path):
         pm = QPixmap(path) if path else QPixmap()
         if pm.isNull():
@@ -55,6 +68,7 @@ class ImageLoader(QObject):
         for label, w, h, cover in self.waiting.pop(url, []):
             if not pm.isNull():
                 self._apply(label, pm, w, h, cover)
+        self.ready.emit(url)
 
     @staticmethod
     def _apply(label, pm, w, h, cover=False):

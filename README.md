@@ -54,9 +54,10 @@ All patch-specific data (banners, new characters, standard pool, banner types, p
 | Tab | What it does |
 |-----|--------------|
 | Tracker | Banner cards with 5✦/4✦ pity, totals, Astrite, average featured pity, 50/50 record, luck vs. model, 5✦ list and pity chart |
-| Pull History | Searchable, sortable table with rarity and banner filters |
+| Pull History | Searchable, sortable table with portraits, rarity/banner filters and patch column |
 | Probability | Chance of N featured copies within X pulls (or Astrite + Tides) from your current pity/guarantee, plus expected pulls, 50/90/100 % thresholds and charts |
-| Prydwen | Prydwen.gg tier list with portraits, owned badges and per-character ratings, best weapons and echo sets (links to the full guide) |
+| Prydwen | Prydwen.gg tier list with portraits and owned badges, a character panel (ratings, best weapons, echo sets), and Prydwen's own website in a built-in browser for the full guides |
+| Convene Simulator | Mini-game: free x1/x10 pulls on the current banners with the real pity/50-50 rules and an animated reveal |
 | AI Assistant | Chat with a local Ollama model that calls the app's tools (`get_overview`, `featured_probability`, `pulls_needed`, …) |
 | Settings | Ollama host, pity model, game folder, server region, standard 5✦ list, banner names |
 

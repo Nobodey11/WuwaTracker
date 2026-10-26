@@ -10,4 +10,9 @@ if not exist .venv (
 ) else (
     call .venv\Scripts\activate.bat
 )
+REM Optional built-in browser for Prydwen guides (about 120 MB, installed once)
+python -c "import PySide6.QtWebEngineWidgets" 2>nul || (
+    echo Installing the built-in browser for Prydwen guides - one time, about 120 MB...
+    pip install -r requirements-web.txt || echo Optional browser not installed - guides will open in your normal browser.
+)
 start "" pythonw -m wuwa_tracker.app %*

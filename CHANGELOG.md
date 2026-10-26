@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 (2026-10-26): portraits everywhere, Prydwen guides in-app, Convene Simulator
+- **Pull History** shows a portrait next to every 4★/5★ (and weapons), loaded lazily for the visible rows only.
+- **Prydwen tab** now has two sub-tabs:
+  - *Tier list & my characters*: the native tier list + character panel (double-click a character = full guide).
+  - *Prydwen website · guides*: Prydwen's real pages in a built-in browser (full character guides, and the
+    Whimpering Wastes tier list via their own switch). Only prydwen.gg opens inside the app; other links go to
+    your normal browser. Needs the optional `PySide6-WebEngine` package (run.bat installs it once, ~120 MB);
+    without it guides open in your normal browser.
+- **Convene Simulator** mini-game: free x1 / x10 pulls on the current banners with the real rules (soft pity,
+  50/50 + guarantee, 4★ every 10, rate-up 4★s), animated reveal with portraits and gold/purple flashes, session stats
+  and drop log; optionally start from your real pity. Engine verified against the probability model in tests.
+
 ## 0.3.2 (2026-10-26): disclaimer
 - Added DISCLAIMER.md, a README notice and Help → About: based on the WuWa Tracker pull tracker, not affiliated with
   WuWa Tracker, Prydwen.gg or Kuro Games, strictly for personal use.

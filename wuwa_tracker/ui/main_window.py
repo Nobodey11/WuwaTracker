@@ -15,6 +15,7 @@ from .history_tab import HistoryTab
 from .new_content_dialog import NewContentDialog
 from .overview_tab import OverviewTab
 from .prydwen_tab import PrydwenTab
+from .simulator_tab import SimulatorTab
 from .settings_tab import SettingsTab
 
 
@@ -89,6 +90,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(HistoryTab(state), "Pull History")
         self.tabs.addTab(CalculatorTab(state), "Probability")
         self.tabs.addTab(PrydwenTab(state), "Prydwen")
+        self.tabs.addTab(SimulatorTab(state), "Convene Simulator")
         self.tabs.addTab(AssistantTab(state), "AI Assistant")
         self.tabs.addTab(SettingsTab(state, lambda m: self.statusBar().showMessage(m, 8000), self.check_gamedata),
                          "Settings")

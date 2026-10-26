@@ -7,7 +7,7 @@ from datetime import datetime
 from PySide6.QtCore import QThread, QUrl, Qt, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QCheckBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-                               QScrollArea, QVBoxLayout, QWidget)
+                               QScrollArea, QTabWidget, QVBoxLayout, QWidget)
 
 from ..core.prydwen import CHAR_URL, TIER_URL, key
 from . import theme as T
@@ -40,6 +40,7 @@ class Fetch(QThread):
 
 class Tile(QFrame):
     clicked = Signal(str, str)     # slug, name
+    double_clicked = Signal(str)   # slug
 
     def __init__(self, entry, owned: int, images):
         super().__init__()
@@ -79,6 +80,9 @@ class Tile(QFrame):
     def mousePressEvent(self, e):
         self.clicked.emit(self.entry.slug, self.entry.name)
 
+    def mouseDoubleClickEvent(self, e):
+        self.double_clicked.emit(self.entry.slug)
+
 
 class PrydwenTab(QWidget):
     def __init__(self, state):
@@ -86,18 +90,28 @@ class PrydwenTab(QWidget):
         self.state = state
         self.tl = None
         self.workers = []
-        root = QHBoxLayout(self); root.setContentsMargins(20, 16, 20, 16); root.setSpacing(18)
+        outer = QVBoxLayout(self); outer.setContentsMargins(20, 10, 20, 16)
+        self.sub = QTabWidget()
+        outer.addWidget(self.sub)
+        page = QWidget()
+        root = QHBoxLayout(page); root.setContentsMargins(0, 8, 0, 0); root.setSpacing(18)
+        self.sub.addTab(page, "Tier list && my characters")
+        from .web_view import PrydwenWeb
+        self.web = PrydwenWeb(state.prydwen.dir / "web")
+        self.sub.addTab(self.web, "Prydwen website · guides")
+        self.sub.currentChanged.connect(lambda i: self.web.ensure_loaded() if self.sub.widget(i) is self.web else None)
 
         # ---------------- left: tier list
         left = QVBoxLayout(); left.setSpacing(10)
         top = QHBoxLayout()
-        t = QLabel("Prydwen tier list · Tower of Adversity"); t.setObjectName("h1")
+        t = QLabel("Tower of Adversity"); t.setObjectName("h1")
+        t.setToolTip("Click a character for details, double-click for the full Prydwen guide")
         top.addWidget(t); top.addStretch()
         self.search = QLineEdit(); self.search.setPlaceholderText("Search character…"); self.search.setFixedWidth(180)
         self.only_owned = QCheckBox("Only mine")
         self.refresh_btn = QPushButton("↻ Refresh")
-        site = QPushButton("Open on prydwen.gg")
-        site.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(TIER_URL)))
+        site = QPushButton("Prydwen tier list page")
+        site.clicked.connect(lambda: self.open_guide(TIER_URL))
         for w in (self.search, self.only_owned, self.refresh_btn, site):
             top.addWidget(w)
         left.addLayout(top)
@@ -203,12 +217,17 @@ class PrydwenTab(QWidget):
                     if e.role == r:
                         tile = Tile(e, owned.get(key(e.name), 0), self.state.images)
                         tile.clicked.connect(self.show_character)
+                        tile.double_clicked.connect(lambda sl: self.open_guide(CHAR_URL.format(slug=sl)))
                         fl.addWidget(tile)
                 self.grid.addWidget(cell, row, c)
             row += 1
         for c in (1, 2, 3):
             self.grid.setColumnStretch(c, 1)
         self.grid.setRowStretch(row, 1)
+
+    def open_guide(self, url):
+        if self.web.open(url):
+            self.sub.setCurrentWidget(self.web)
 
     # ---------------- character panel
     def _placeholder(self, text):
@@ -224,7 +243,7 @@ class PrydwenTab(QWidget):
         if err:
             self._placeholder(f"⚠ Could not load {name}: {err}")
             b = QPushButton("Open guide on prydwen.gg")
-            b.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(CHAR_URL.format(slug=slug))))
+            b.clicked.connect(lambda: self.open_guide(CHAR_URL.format(slug=slug)))
             self.info_lay.insertWidget(1, b)
             return
         L = self.info_lay
@@ -282,8 +301,9 @@ class PrydwenTab(QWidget):
                 L.addLayout(row)
 
         upd = QLabel(f"Prydwen guide last updated: {c.updated or '?'}"); upd.setObjectName("muted"); L.addWidget(upd)
-        b = QPushButton("Open full guide on prydwen.gg ↗"); b.setObjectName("primary")
-        b.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(c.url)))
+        b = QPushButton("Read the full guide (Prydwen)"); b.setObjectName("primary")
+        b.setToolTip("Opens Prydwen's guide page in the 'Prydwen website' sub-tab")
+        b.clicked.connect(lambda: self.open_guide(c.url))
         L.addWidget(b)
         rb = QPushButton("↻ Reload this character")
         rb.clicked.connect(lambda: self._run(lambda: self.state.prydwen.character(slug, force=True),

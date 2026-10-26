@@ -5,7 +5,7 @@ if not exist .venv (
     py -3 -m venv .venv || python -m venv .venv
 )
 call .venv\Scripts\activate.bat
-pip install -r requirements.txt pyinstaller
+pip install -r requirements.txt -r requirements-web.txt pyinstaller
 pyinstaller --noconfirm --windowed --name WuwaTracker --collect-submodules wuwa_tracker --add-data "wuwa_tracker\data\game_data.json;wuwa_tracker\data" launcher.py
 echo.
 echo Done: dist\WuwaTracker\WuwaTracker.exe
