@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "data_version": "2026.10.26",
+  "game_patch": "3.7",
+  "notes": "Bundled game data. Update this file (or publish it at your update URL) every patch. See docs/PATCH_UPDATE.md.",
+
+  "rates": {
+    "base5": 0.008,
+    "hard_pity5": 80,
+    "soft_pity_steps": [[66, 0.04], [71, 0.08], [76, 0.10]],
+    "base4": 0.06,
+    "hard_pity4": 10,
+    "featured_chance_character": 0.5,
+    "featured_chance_weapon": 1.0,
+    "astrite_per_pull": 160
+  },
+
+  "banner_types": {
+    "1":  {"name": "Featured Resonator",       "kind": "featured_character"},
+    "2":  {"name": "Featured Weapon",          "kind": "featured_weapon"},
+    "3":  {"name": "Standard Resonator",       "kind": "standard"},
+    "4":  {"name": "Standard Weapon",          "kind": "standard"},
+    "5":  {"name": "Beginner Convene",         "kind": "beginner"},
+    "6":  {"name": "Beginner's Choice",        "kind": "selector"},
+    "7":  {"name": "Giveaway Choice",          "kind": "selector"},
+    "8":  {"name": "Event Convene (type 8)",   "kind": "event"},
+    "10": {"name": "Event Resonator (type 10)","kind": "event"},
+    "11": {"name": "Event Weapon (type 11)",   "kind": "event"},
+    "12": {"name": "Reverb Resonator Convene", "kind": "event"}
+  },
+
+  "standard_5star_resonators": ["Calcharo", "Encore", "Jianxin", "Lingyang", "Verina"],
+  "standard_5star_weapons": ["Emerald of Genesis", "Static Mist", "Abyss Surges", "Lustrous Razor", "Cosmic Ripples",
+                             "Pulsation Bracer", "Radiance Cleaver"],
+
+  "limited_5star_resonators": ["Aemeath", "Chisa", "Denia", "Hiyuki", "Hsin", "Iuno", "Lucilla", "Lucy", "Luuk Herssen",
+                               "Lynae", "Mornye", "Qiuyuan", "Sigrika", "Suisui", "Suoming", "Yangyang: Xuanling"],
+  "limited_5star_weapons": ["Blooming Jadehaven", "Emerald Sentence", "Everbright Polestar", "Forged Dwarf Star",
+                            "Freeze Frame", "Kumokiri", "Moongazer's Sigil", "Solsworn Ciphers", "Spectral Trigger",
+                            "Spectrum Blaster", "Unspoken Rue"],
+
+  "banners": [
+    {"patch": "3.7", "phase": 1, "start": "2026-09-30", "end": "2026-10-22",
+     "featured_5star_resonators": ["Hsin", "Chisa", "Iuno"],
+     "featured_5star_weapons": ["Blooming Jadehaven", "Kumokiri", "Moongazer's Sigil"],
+     "featured_4star_resonators": ["Youhu", "Taoqi", "Buling"]},
+    {"patch": "3.7", "phase": 2, "start": "2026-10-22", "end": "2026-11-11",
+     "featured_5star_resonators": ["Suoming", "Lynae", "Lucilla"],
+     "featured_5star_weapons": ["Unspoken Rue", "Spectrum Blaster", "Freeze Frame"],
+     "featured_4star_resonators": ["Lumi", "Danjin", "Chixia"]}
+  ]
+}
