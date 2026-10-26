@@ -80,7 +80,10 @@ class SimulatorTab(QWidget):
         self.featured = QComboBox()
         self.real = QCheckBox("Use my real pity")
         self.real.setToolTip("Start from your current pity and 50/50 guarantee on that banner")
+        self.anim = QCheckBox("Play convene animation")
+        self.anim.setChecked(True)
         f.addRow("Banner", self.kind); f.addRow("Featured 5✦", self.featured); f.addRow("", self.real)
+        f.addRow("", self.anim)
         l1.addLayout(f)
         reset = QPushButton("New session"); reset.clicked.connect(self.new_session)
         l1.addWidget(reset)
@@ -193,6 +196,8 @@ class SimulatorTab(QWidget):
 
     # ---------------- pulling
     def convene(self, n):
+        if not self.b10.isEnabled():
+            return
         if self.queue:
             self._reveal_all()
         items = self.sim.pull(n)
@@ -202,16 +207,26 @@ class SimulatorTab(QWidget):
         for sl in self.slots[n:]:
             sl.setVisible(False)
         self.queue = list(zip(self.slots, items))
+        self.update_stats()
+        for it in items:
+            if it.rarity >= 4:
+                self._log(it)
+        if self.anim.isChecked():
+            from .convene_animation import ConveneAnimation
+            self.b1.setEnabled(False); self.b10.setEnabled(False)
+            a = ConveneAnimation(self.window().centralWidget(), items, self.state.images, self.state.prydwen)
+            a.finished.connect(lambda: self._after_animation(items))
+        else:
+            self._after_animation(items)
+
+    def _after_animation(self, items):
+        self.b1.setEnabled(True); self.b10.setEnabled(True)
         best = max(i.rarity for i in items)
         if best == 5:
             self._flash(T.GOLD)
         elif best == 4:
             self._flash(T.PURPLE)
         self.timer.start(140)
-        self.update_stats()
-        for it in items:
-            if it.rarity >= 4:
-                self._log(it)
 
     def _flash(self, color):
         self.banner.setStyleSheet(f"QFrame {{ background:{T.CARD}; border:3px solid {color}; border-radius:12px; }}")

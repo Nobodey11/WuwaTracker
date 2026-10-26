@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.2 (2026-10-26): Convene animation
+- Convene Simulator plays a full-window pull animation (original artwork, not game footage): starry sky,
+  comet streak whose colour shows the best result (late gold upgrade for a 5★), a flash and shockwave burst, then a
+  reveal per 4★/5★ with light rays, sliding portrait, stars popping in, a shine sweep and the 50/50 result.
+  Click to advance, Skip/Esc to jump to the results; can be turned off ("Play convene animation").
+- The Standard Resonator banner card shows a standard-pool 5★ portrait (changes daily) until you pull a 5★ there.
+
 ## 0.4.1 (2026-10-26): app icon + cleaner header
 - New app icon (gold sparkle inside a gold-to-purple "pity ring"), used for the window, the Windows taskbar and
   the .exe built with build_exe.bat.

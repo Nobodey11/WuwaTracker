@@ -224,6 +224,13 @@ class OverviewTab(QWidget):
         if s.five_stars:
             f = s.five_stars[-1]
             return f.name, f.resource_id, f"Your latest 5✦ here: {f.name} (pity {f.pity})"
+        if s.kind == "standard" and s.pool_type != 4:
+            # no 5✦ pulled here yet: show one of the standard-pool 5✦ resonators (changes daily)
+            from datetime import date
+            pool = sorted(self.state.gd.standard_resonators)
+            if pool:
+                name = pool[date.today().toordinal() % len(pool)]
+                return name, None, f"Standard 5✦ pool: {', '.join(pool)} (no 5✦ pulled here yet)"
         return None, None, ""
 
     def show_next(self, s):
