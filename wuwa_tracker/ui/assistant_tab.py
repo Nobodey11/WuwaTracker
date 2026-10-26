@@ -60,6 +60,7 @@ class AssistantTab(QWidget):
         self.toolbox = ToolBox(lambda: self.state.stats, lambda: self.state.hazard(), lambda: self.state.gd,
                                lambda: self.state.prydwen if self.state.prydwen_on() else None,
                                lambda: self.state.owned_snapshot)
+        self.toolbox.redeemed = lambda: list(self.state.get("redeemed_codes") or [])
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(20, 16, 20, 16)

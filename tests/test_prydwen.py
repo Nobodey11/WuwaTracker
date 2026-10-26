@@ -77,3 +77,13 @@ def test_character_list_and_card_art(tmp_path, monkeypatch):
     assert p.card_url("Yangyang: Xuanling").endswith("yangyang-xuanling_card.webp")
     assert p.card_url("Spectral Trigger", 21030056).endswith("/weapons/21030056.webp")
     assert p.card_url("Unknown") is None
+
+
+def test_codes_parser():
+    d = pw.parse_codes((FX / "prydwen_codes.html").read_text(encoding="utf-8"))
+    assert d["updated"] == "20 Oct 2026"
+    assert [c["code"] for c in d["active"]] == ["WUTHERINGGIFT"]
+    assert d["active"][0]["rewards"][0] == {"name": "Astrite", "amount": "50",
+                                            "icon": "https://cdn.prydwen.gg/images/ww/icons/astrite.webp"}
+    assert d["active"][0]["rewards"][2]["amount"] == "10,000"
+    assert [c["code"] for c in d["expired"]] == ["FALLINGSANCTUM", "DVME2MOHOQJT"]

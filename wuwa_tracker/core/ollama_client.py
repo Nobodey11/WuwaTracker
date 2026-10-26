@@ -67,6 +67,10 @@ TOOLS = [
         "description": "Prydwen.gg tier-list rating, role, tags, best weapons and echo sets for a character (e.g. to judge whether a banner is worth pulling). Also says how many copies the user owns.",
         "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}},
     {"type": "function", "function": {
+        "name": "redemption_codes",
+        "description": "Currently active Wuthering Waves redemption codes and their rewards (from Prydwen.gg), and which ones the user already marked as redeemed.",
+        "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {
         "name": "astrite_to_pulls",
         "description": "Convert Astrite (and optional Radiant/Forging Tides already owned) into number of pulls.",
         "parameters": {"type": "object", "properties": {
@@ -175,6 +179,15 @@ class ToolBox:
         if self.owned:
             out["copies_owned_from_pulls"] = self.owned().get(key(e.name), 0)
         return out
+
+    def t_redemption_codes(self):
+        if not self.prydwen or not self.prydwen():
+            return {"error": "Prydwen integration is turned off"}
+        d = self.prydwen().codes()
+        redeemed = set(getattr(self, "redeemed", lambda: [])() or [])
+        return {"source": "prydwen.gg", "list_updated": d.get("updated"),
+                "active": [{"code": c["code"], "redeemed_by_user": c["code"] in redeemed,
+                            "rewards": [f"{r['name']} x{r['amount']}" for r in c["rewards"]]} for c in d["active"]]}
 
     def t_astrite_to_pulls(self, astrite, tides=0):
         return {"pulls": int(astrite) // ASTRITE_PER_PULL + int(tides or 0),

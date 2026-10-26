@@ -21,11 +21,13 @@ BASE = "https://www.prydwen.gg"
 TIER_URL = BASE + "/wuthering-waves/tier-list"
 CHARS_URL = BASE + "/wuthering-waves/characters"
 CHAR_URL = BASE + "/wuthering-waves/characters/{slug}"
+CODES_URL = BASE + "/wuthering-waves/codes"
 WEAPON_ICON = "https://cdn.prydwen.gg/images/wuthering-waves/weapons/{rid}.webp"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) WuwaTracker/0.3 (+https://github.com/Nobodey11/WuwaTracker)"
 
 TTL_TIER = 12 * 3600          # tier list: refresh at most twice a day
 TTL_CHAR = 3 * 24 * 3600      # character pages: every 3 days
+TTL_CODES = 3 * 3600          # redemption codes: every 3 hours
 ROLE_LABEL = {"dps": "DPS", "debuffer": "Hybrid", "support": "Support"}
 WEAPON_ID_MIN = 100000
 
@@ -244,6 +246,43 @@ def parse_character_list(html: str) -> dict[str, dict]:
     return out
 
 
+def _rewards(node: Node) -> list[dict]:
+    out = []
+    for r in node.find_all("span", "code-reward"):
+        img = r.find("img")
+        strong = r.find("strong")
+        amount = strong.clean_text().lstrip("×x ").strip() if strong else ""
+        name = r.clean_text()
+        if strong:
+            name = name.replace(strong.clean_text(), "").strip()
+        out.append({"name": name, "amount": amount, "icon": img.attrs.get("src", "") if img else ""})
+    return out
+
+
+def parse_codes(html: str) -> dict:
+    """Codes page -> {updated, active:[{code, rewards}], expired:[{code, rewards}]}."""
+    root = parse_html(html)
+    active, expired, seen = [], [], set()
+    for card in root.find_all("article", "code-card"):
+        c = card.find("code")
+        if not c:
+            continue
+        code = c.clean_text()
+        state = card.find("span", "code-state")
+        is_exp = "is-expired" in card.classes or (state is not None and "expired" in state.clean_text().lower())
+        (expired if is_exp else active).append({"code": code, "rewards": _rewards(card)})
+        seen.add(code)
+    for row in root.find_all("tr"):                      # 'all expired codes' table
+        c = row.find("code")
+        if c and c.clean_text() not in seen:
+            expired.append({"code": c.clean_text(), "rewards": _rewards(row)})
+            seen.add(c.clean_text())
+    m = re.search(r"Updated\s+(\d{1,2}\s+\w+\s+\d{4})", root.clean_text())
+    if not active and not expired:
+        raise ValueError("No codes found on the page (Prydwen layout changed?)")
+    return {"updated": m.group(1) if m else "", "active": active, "expired": expired}
+
+
 def parse_character(html: str, slug: str) -> CharacterInfo:
     root = parse_html(html)
     info = CharacterInfo(name=slug, slug=slug, url=CHAR_URL.format(slug=slug), fetched=time.time())
@@ -366,6 +405,14 @@ class Prydwen:
                     "chars": parse_character_list(self._get(CHARS_URL).decode("utf-8", "replace"))}
         data, _ = self._cached_json("characters", TTL_CHAR, fetch, force)
         return data["chars"]
+
+    def codes(self, force: bool = False) -> dict:
+        def fetch():
+            d = parse_codes(self._get(CODES_URL).decode("utf-8", "replace"))
+            d["fetched"] = time.time()
+            return d
+        data, _ = self._cached_json("codes", TTL_CODES, fetch, force)
+        return data
 
     def cached_character_list(self) -> dict[str, dict]:
         path = self.dir / "characters.json"

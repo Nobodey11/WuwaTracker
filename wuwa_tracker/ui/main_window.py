@@ -16,6 +16,7 @@ from .new_content_dialog import NewContentDialog
 from .overview_tab import OverviewTab
 from .prydwen_tab import PrydwenTab
 from .simulator_tab import SimulatorTab
+from .codes_tab import CodesTab
 from .settings_tab import SettingsTab
 
 
@@ -117,6 +118,8 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(CalculatorTab(state), "Probability")
         self.tabs.addTab(PrydwenTab(state), "Prydwen")
         self.tabs.addTab(SimulatorTab(state), "Convene Simulator")
+        self.codes_tab = CodesTab(state, lambda m: self.statusBar().showMessage(m, 15000))
+        self.tabs.addTab(self.codes_tab, "Codes")
         self.tabs.addTab(AssistantTab(state), "AI Assistant")
         self.tabs.addTab(SettingsTab(state, lambda m: self.statusBar().showMessage(m, 8000), self.check_gamedata),
                          "Settings")
@@ -128,6 +131,7 @@ class MainWindow(QMainWindow):
         for i in range(self.tabs.count()):
             self.nav.addTab(self.tabs.tabText(i))
         self.nav.currentChanged.connect(self.tabs.setCurrentIndex)
+        self.codes_tab.new_codes.connect(self._codes_badge)
         self.tabs.currentChanged.connect(lambda i: self.nav.currentIndex() != i and self.nav.setCurrentIndex(i))
         self.setWindowIcon(app_icon())
 
@@ -166,10 +170,20 @@ class MainWindow(QMainWindow):
         add("Check for game data updates", lambda: self.check_gamedata(True), "F5")
         add("Classify new content…", lambda: self.ask_new_content(only_if_any=False))
         add("About game data…", self.about_gamedata)
+        menu.addSection("My account")
+        add("Owned outside pulls (gifts, free units)…", self.edit_extras)
         menu.addSection("App")
         add("About / disclaimer…", self.about)
         add("Exit", self.close, "Ctrl+Q")
         self.menu_btn.setMenu(menu)
+
+    def _codes_badge(self, n):
+        i = self.tabs.indexOf(self.codes_tab)
+        self.nav.setTabText(i, f"Codes  🎁{n}" if n else "Codes")
+
+    def edit_extras(self):
+        from .extras_dialog import ExtrasDialog
+        ExtrasDialog(self.state, self).exec()
 
     # ---------- game data ----------
     def refresh_gd_label(self):

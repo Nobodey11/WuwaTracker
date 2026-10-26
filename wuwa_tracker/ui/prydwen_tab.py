@@ -261,9 +261,24 @@ class PrydwenTab(QWidget):
         title.setStyleSheet(f"color:{ELEMENT_COLORS.get(c.element, T.TEXT)}; font-size:18pt; font-weight:800;")
         L.addWidget(title)
         n_own = owned.get(key(c.name), 0)
-        own_txt = (f"You own it: <b>S{n_own - 1}</b>" if rarity == 5 else f"You pulled it ×{n_own}") if n_own else "Not pulled yet"
+        extras = {key(k): (k, v) for k, v in self.state.extras().items()}
+        gift = extras.get(key(c.name))
+        if n_own:
+            own_txt = f"You own it: <b>S{min(n_own - 1, 6)}</b>" if rarity == 5 else f"You own it ×{n_own}"
+            if gift:
+                own_txt += f" <span style='color:{T.MUTED}'>(incl. {gift[1]} not from pulls)</span>"
+        else:
+            own_txt = "Not owned yet"
         sub = QLabel(f"{'★' * rarity if rarity else ''}  {c.element}  ·  {own_txt}")
-        sub.setTextFormat(Qt.RichText); L.addWidget(sub)
+        sub.setTextFormat(Qt.RichText); sub.setWordWrap(True); L.addWidget(sub)
+        gb = QPushButton("Remove from 'owned outside pulls'" if gift else "＋ I own this (gift / free unit)")
+        gb.setToolTip("For characters you got without pulling (event gifts, free selectors). They then count as "
+                      "owned in badges, filters and the AI assistant.")
+        def toggle(_=False, name=c.name, g=gift):
+            self.state.set_extra(g[0] if g else name, 0 if g else 1)
+            self.on_character(c, "", slug, name)
+        gb.clicked.connect(toggle)
+        L.addWidget(gb)
         if entry and entry.tags:
             tags = QLabel("Tags: " + ", ".join(entry.tags)); tags.setObjectName("muted"); tags.setWordWrap(True)
             L.addWidget(tags)

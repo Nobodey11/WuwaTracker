@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.0 (2026-10-26): redemption codes + characters owned outside pulls
+- New **Codes** tab: active redemption codes from Prydwen.gg with reward icons, a Copy button and a "Redeemed" tick-off
+  (remembered). The tab shows a 🎁 badge with the number of codes you still have to redeem, and the status bar announces
+  newly added codes. Expired codes are listed on demand. Refreshed every 3 hours (↻ for now).
+- **Owned outside pulls**: characters/weapons you got for free (event gifts, free units) count as owned in the Prydwen
+  tab (badges, "Only mine"), the character panel and the AI assistant. Add them with "＋ I own this" in the character
+  panel or via ☰ → Owned outside pulls. Stored in the app and mirrored to a local, git-ignored my_characters.json.
+- AI assistant tool `redemption_codes`.
+
 ## 0.4.4 (2026-10-26): manual reveals + new sound design
 - Reveals no longer advance by themselves: each item waits for a click or key press ("Click to continue ▶").
   Clicking during a reveal finishes it instantly; Skip/Esc still jumps to the results.
