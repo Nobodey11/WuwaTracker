@@ -34,7 +34,7 @@ Layers, from lowest to highest priority: bundled file → downloaded file (if ne
 Run these from the project folder (inside `.venv`):
 
 ```bat
-:: 1. Export from wuwatracker (or use File → Import from game) and see what's new
+:: 1. Export from wuwatracker (or use ☰ menu → Import from game) and see what's new
 python tools\new_patch.py scan C:\path\to\wuwatracker-pulls.json
 
 :: 2. Add the new phase(s). The dates and banners are in the official livestream/patch notes.

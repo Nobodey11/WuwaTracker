@@ -255,7 +255,7 @@ class OverviewTab(QWidget):
         lines = [("Now: " + fmt(b)) for b in cur] + [("Next: " + fmt(b)) for b in nxt[:2]]
         if not lines:
             lines = [f"<span style='color:{T.ORANGE}'>No banner info for today — the game data is out of date. "
-                     "Use Help → Check for game data updates, or add the new patch to game_data.json "
+                     "Use ☰ menu → Check for game data updates, or add the new patch to game_data.json "
                      "(see docs/PATCH_UPDATE.md).</span>"]
         self.now_body.setText("<br>".join(lines))
 

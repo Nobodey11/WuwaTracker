@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from PySide6.QtCore import QThread, QTimer, Signal
-from PySide6.QtGui import QAction
-from PySide6.QtWidgets import (QComboBox, QFileDialog, QHBoxLayout, QInputDialog, QLabel, QMainWindow, QMessageBox,
-                               QTabWidget, QVBoxLayout, QWidget)
+from PySide6.QtCore import QThread, QTimer, Qt, Signal
+from PySide6.QtGui import QAction, QIcon
+from PySide6.QtWidgets import (QComboBox, QFileDialog, QHBoxLayout, QInputDialog, QLabel, QMainWindow, QMenu,
+                               QMessageBox, QPushButton, QTabBar, QTabWidget, QToolButton, QVBoxLayout, QWidget)
 
 from ..core import game_import
 from . import theme as T
@@ -46,6 +46,16 @@ class GameImportWorker(QThread):
             self.done.emit([], "", str(e))
 
 
+def app_icon() -> QIcon:
+    from pathlib import Path
+    base = Path(__file__).resolve().parent.parent / "assets"
+    icon = QIcon()
+    for f in ("icon.ico", "icon.png"):
+        if (base / f).exists():
+            icon.addFile(str(base / f))
+    return icon
+
+
 def next_resets(utc_offset_h: float):
     tz = timezone(timedelta(hours=utc_offset_h))
     now = datetime.now(tz)
@@ -72,18 +82,34 @@ class MainWindow(QMainWindow):
         root = QWidget(); root.setObjectName("root")
         v = QVBoxLayout(root); v.setContentsMargins(0, 0, 0, 0); v.setSpacing(0)
 
-        header = QWidget(); header.setStyleSheet(f"background:{T.CARD}; border-bottom:1px solid {T.BORDER};")
-        hl = QHBoxLayout(header); hl.setContentsMargins(20, 8, 20, 8)
-        logo = QLabel("✦ WuWa Pull Tracker"); logo.setStyleSheet(f"font-size:13pt; font-weight:800; color:{T.GOLD};")
-        hl.addWidget(logo); hl.addStretch()
-        self.gd_label = QLabel(); self.gd_label.setObjectName("muted")
-        hl.addWidget(self.gd_label); hl.addSpacing(20)
-        self.resets = QLabel(); self.resets.setObjectName("muted")
-        hl.addWidget(self.resets); hl.addSpacing(20)
-        hl.addWidget(QLabel("Player:"))
-        self.player = QComboBox(); self.player.setMinimumWidth(130)
-        hl.addWidget(self.player)
-        v.addWidget(header)
+        # ---------- top navigation bar (logo · tabs · player · menu) ----------
+        top = QWidget(); top.setObjectName("topbar")
+        tl = QHBoxLayout(top); tl.setContentsMargins(18, 0, 12, 0); tl.setSpacing(10)
+        icon = QLabel(); icon.setPixmap(app_icon().pixmap(28, 28)); icon.setObjectName("plain")
+        word = QLabel(f"<span style='color:{T.GOLD}'>WuWa</span> Pull Tracker"); word.setObjectName("wordmark")
+        tl.addWidget(icon); tl.addWidget(word); tl.addSpacing(22)
+        self.nav = QTabBar(); self.nav.setObjectName("nav"); self.nav.setDrawBase(False); self.nav.setExpanding(False)
+        tl.addWidget(self.nav, 0, Qt.AlignBottom)
+        tl.addStretch()
+        self.player = QComboBox(); self.player.setObjectName("pill"); self.player.setMinimumWidth(120)
+        self.player.setToolTip("Player (account)")
+        tl.addWidget(self.player)
+        self.menu_btn = QToolButton(); self.menu_btn.setObjectName("menuBtn"); self.menu_btn.setText("☰")
+        self.menu_btn.setToolTip("Menu: import, export, updates, about")
+        self.menu_btn.setPopupMode(QToolButton.InstantPopup)
+        tl.addWidget(self.menu_btn)
+        v.addWidget(top)
+
+        # ---------- thin status strip (game data · reset timers) ----------
+        strip = QWidget(); strip.setObjectName("strip")
+        sl = QHBoxLayout(strip); sl.setContentsMargins(20, 0, 20, 0); sl.setSpacing(18)
+        self.gd_label = QPushButton(); self.gd_label.setObjectName("chip"); self.gd_label.setCursor(Qt.PointingHandCursor)
+        self.gd_label.clicked.connect(self.about_gamedata)
+        sl.addWidget(self.gd_label); sl.addStretch()
+        self.daily = QLabel(); self.daily.setObjectName("stripText")
+        self.weekly = QLabel(); self.weekly.setObjectName("stripText")
+        sl.addWidget(self.daily); sl.addWidget(self.weekly)
+        v.addWidget(strip)
 
         self.tabs = QTabWidget()
         self.tabs.addTab(OverviewTab(state), "Tracker")
@@ -96,6 +122,14 @@ class MainWindow(QMainWindow):
                          "Settings")
         v.addWidget(self.tabs)
         self.setCentralWidget(root)
+        # the nav bar in the header drives the pages; the QTabWidget's own bar is hidden
+        self.tabs.tabBar().hide()
+        self.tabs.setDocumentMode(True)
+        for i in range(self.tabs.count()):
+            self.nav.addTab(self.tabs.tabText(i))
+        self.nav.currentChanged.connect(self.tabs.setCurrentIndex)
+        self.tabs.currentChanged.connect(lambda i: self.nav.currentIndex() != i and self.nav.setCurrentIndex(i))
+        self.setWindowIcon(app_icon())
 
         self._menu()
         self.player.currentTextChanged.connect(self.change_player)
@@ -108,31 +142,34 @@ class MainWindow(QMainWindow):
         self.tick()
         if not state.pulls:
             QTimer.singleShot(300, lambda: self.statusBar().showMessage(
-                "No data yet: File → Import wuwatracker JSON… (or try Import from game)."))
+                "No data yet: ☰ menu → Import wuwatracker JSON… (Ctrl+O)."))
         if state.get("gamedata_autocheck") and state.get("gamedata_url"):
             QTimer.singleShot(800, lambda: self.check_gamedata(False))
         QTimer.singleShot(1200, lambda: self.ask_new_content(only_if_any=True))
 
     def _menu(self):
-        m = self.menuBar().addMenu("&File")
+        self.menuBar().hide()
+        menu = QMenu(self)
         def add(text, fn, shortcut=None):
             a = QAction(text, self); a.triggered.connect(fn)
-            if shortcut: a.setShortcut(shortcut)
-            m.addAction(a)
+            if shortcut:
+                a.setShortcut(shortcut)
+                self.addAction(a)          # keep the shortcut working with the menu closed
+            menu.addAction(a)
+        menu.addSection("Data")
         add("Import wuwatracker JSON…", self.import_json, "Ctrl+O")
         add("Import from game (experimental)…", self.import_game, "Ctrl+G")
-        m.addSeparator()
         add("Export CSV…", self.export_csv)
         add("Export wuwatracker JSON…", self.export_json)
-        m.addSeparator()
         add("Delete this player's data…", self.clear)
-        add("Exit", self.close, "Ctrl+Q")
-        m = self.menuBar().addMenu("&Help")
+        menu.addSection("Game data")
         add("Check for game data updates", lambda: self.check_gamedata(True), "F5")
         add("Classify new content…", lambda: self.ask_new_content(only_if_any=False))
         add("About game data…", self.about_gamedata)
-        m.addSeparator()
+        menu.addSection("App")
         add("About / disclaimer…", self.about)
+        add("Exit", self.close, "Ctrl+Q")
+        self.menu_btn.setMenu(menu)
 
     # ---------- game data ----------
     def refresh_gd_label(self):
@@ -140,8 +177,8 @@ class MainWindow(QMainWindow):
         items, pools = self.state.unknown_content()
         stale = not gd.current_banners()
         flag = " ⚠" if (items or pools or stale) else ""
-        self.gd_label.setText(f"Data v{gd.version} · Patch {gd.patch}{flag}")
-        self.gd_label.setToolTip("Game data is out of date or has unclassified items — see Help." if flag else
+        self.gd_label.setText(f"Patch {gd.patch}  ·  data v{gd.version}{flag}")
+        self.gd_label.setToolTip("Game data is out of date or has unclassified items — click for details." if flag else
                                  f"Game data source: {gd.source}")
 
     def check_gamedata(self, manual: bool):
@@ -202,7 +239,8 @@ class MainWindow(QMainWindow):
     def tick(self):
         off = game_import.SERVER_UTC_OFFSET.get(self.state.get("server_region"), 8)
         d, w = next_resets(off)
-        self.resets.setText(f"⟳ Daily Reset {fmt_td(d)}     ♛ Weekly Reset {fmt_td(w)}")
+        self.daily.setText(f"Daily reset  <b>{fmt_td(d)}</b>")
+        self.weekly.setText(f"Weekly reset  <b>{fmt_td(w)}</b>")
 
     def refresh_players(self):
         players = self.state.storage.players()

@@ -121,7 +121,7 @@ class SettingsTab(QWidget):
         if unknown_items or unknown_pools:
             warn = (f"<br><span style='color:#e0a020'>⚠ Unclassified new content: "
                     f"{', '.join(n for n, _ in unknown_items)} {' '.join(f'type {p}' for p in unknown_pools)} "
-                    "— use Help → Classify new content.</span>")
+                    "— use ☰ menu → Classify new content.</span>")
         if not gd.current_banners():
             warn += ("<br><span style='color:#e0a020'>⚠ No banner in the data covers today: a new patch is "
                      "probably out. Check for updates or add it (docs/PATCH_UPDATE.md).</span>")

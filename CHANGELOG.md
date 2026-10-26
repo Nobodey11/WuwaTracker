@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.1 (2026-10-26): app icon + cleaner header
+- New app icon (gold sparkle inside a gold-to-purple "pity ring"), used for the window, the Windows taskbar and
+  the .exe built with build_exe.bat.
+- Cleaner top area: one navigation bar (icon, wordmark, tabs, player, ☰ menu) and a thin status strip
+  (patch/data version, daily and weekly reset). The old menu bar moved into the ☰ menu; shortcuts still work
+  (Ctrl+O import, Ctrl+G game import, F5 update check, Ctrl+Q exit).
+
 ## 0.4.0 (2026-10-26): portraits everywhere, Prydwen guides in-app, Convene Simulator
 - **Pull History** shows a portrait next to every 4★/5★ (and weapons), loaded lazily for the visible rows only.
 - **Prydwen tab** now has two sub-tabs:

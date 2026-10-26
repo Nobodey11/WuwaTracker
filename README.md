@@ -1,3 +1,5 @@
+<img src="wuwa_tracker/assets/icon.png" width="72" align="left" alt="icon">
+
 # WuWa Pull Tracker (Windows · offline · Ollama)
 
 [![tests](https://github.com/Nobodey11/WuwaTracker/actions/workflows/tests.yml/badge.svg)](https://github.com/Nobodey11/WuwaTracker/actions/workflows/tests.yml)
@@ -14,7 +16,7 @@ A desktop pull tracker based on the [WuWa Tracker](https://wuwatracker.com) pull
 
 1. Install **Python 3.11+** from python.org (tick *Add python.exe to PATH*).
 2. Download the code (**Code → Download ZIP**, or `git clone https://github.com/Nobodey11/WuwaTracker`) and double-click **`run.bat`**. The first start creates `.venv` and installs the dependencies, which takes about a minute.
-3. **File → Import wuwatracker JSON…** and pick your export (wuwatracker.com → Settings → Export).
+3. **☰ menu → Import wuwatracker JSON…** (Ctrl+O) and pick your export (wuwatracker.com → Settings → Export).
    Importing a newer export later only adds the new pulls.
 
 Your data is stored in `%APPDATA%\WuwaTracker\pulls.db` (SQLite, so you can query it with any SQL tool).
@@ -29,7 +31,7 @@ Your data is stored in `%APPDATA%\WuwaTracker\pulls.db` (SQLite, so you can quer
 Double-click `build_exe.bat` to get `dist\WuwaTracker\WuwaTracker.exe`.
 
 ### Experimental: import straight from the game
-In-game, open **Convene → History** once. Then set your game folder in **Settings** and use **File → Import from game**.
+In-game, open **Convene → History** once. Then set your game folder in **Settings** and use **☰ menu → Import from game**.
 The app reads the history link from the game log and downloads your records, like wuwatracker's import script.
 Set **Server region** correctly (the reset timers in your wuwatracker screenshot point to **Asia, UTC+8**),
 because the game API returns server-local times.

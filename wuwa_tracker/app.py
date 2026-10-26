@@ -17,13 +17,20 @@ def main():
     from PySide6.QtWidgets import QApplication
 
     from .core.storage import Storage
-    from .ui.main_window import MainWindow
+    from .ui.main_window import MainWindow, app_icon
     from .ui.state import AppState
     from .ui.theme import QSS
 
+    if sys.platform.startswith("win"):
+        try:   # own taskbar icon/group instead of python.exe's
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Nobodey11.WuwaPullTracker")
+        except Exception:
+            pass
     app = QApplication(sys.argv)
     app.setApplicationName("WuWa Pull Tracker")
     app.setStyle("Fusion")
+    app.setWindowIcon(app_icon())
     app.setStyleSheet(QSS)
 
     storage = Storage(args.db)
