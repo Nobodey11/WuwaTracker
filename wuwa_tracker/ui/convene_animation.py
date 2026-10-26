@@ -10,7 +10,7 @@ import math
 import random
 
 from PySide6.QtCore import QElapsedTimer, QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import (QBrush, QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen,
+from PySide6.QtGui import (QBrush, QColor, QFont, QFontMetrics, QLinearGradient, QPainter, QPainterPath, QPen,
                            QRadialGradient)
 from PySide6.QtWidgets import QPushButton, QWidget
 
@@ -21,7 +21,9 @@ GOLD = QColor("#ffcc33")
 RARITY = {3: BLUE, 4: PURPLE, 5: GOLD}
 
 LAUNCH, BURST = 1.9, 0.7                     # seconds
-REVEAL = {3: 1.0, 4: 2.0, 5: 2.8}            # seconds per reveal, by rarity
+REVEAL = {3: 1.0, 4: 2.0, 5: 2.8}            # timeline length per reveal, by rarity
+SPEED = {3: 2.0, 4: 1.0, 5: 1.0}             # 3★ reveals play at double speed
+HOLD = {3: 0.15, 4: 0.6, 5: 1.0}             # pause after a reveal before auto-advancing
 
 
 def ease(t):          # smoothstep 0..1
@@ -44,14 +46,16 @@ def alpha(c: QColor, a: float) -> QColor:
 class ConveneAnimation(QWidget):
     finished = Signal()
 
-    def __init__(self, parent, items, images, prydwen):
+    def __init__(self, parent, items, images, prydwen, sound=None):
         super().__init__(parent)
         self.items = items
         self.images = images
+        self.sound = sound
         self.best = max(i.rarity for i in items)
-        self.reveals = [i for i in items if i.rarity >= 4]
-        self.reveals.sort(key=lambda i: i.rarity)            # build-up: 4★ first, 5★ last
-        self.urls = {id(i): prydwen.card_url(i.name, i.resource_id) for i in self.reveals}
+        self.reveals = list(items)                           # every item, in pull order (3★ go fast)
+        self.played = set()
+        self.urls = {id(i): prydwen.card_url(i.name, i.resource_id) if (i.rarity >= 4 or i.resource_id) else None
+                     for i in self.reveals}
         for u in self.urls.values():                          # start downloading during the launch
             if u:
                 images.cached(u)
@@ -74,6 +78,16 @@ class ConveneAnimation(QWidget):
         self.setCursor(Qt.PointingHandCursor)
         self.setGeometry(parent.rect())
         self.show(); self.raise_()
+        self._sfx("whoosh")
+
+    def _sfx(self, name, once_key=None):
+        if self.sound is None:
+            return
+        if once_key is not None:
+            if once_key in self.played:
+                return
+            self.played.add(once_key)
+        self.sound.play(name)
 
     def _on_image(self, _url):
         self.update()
@@ -100,11 +114,14 @@ class ConveneAnimation(QWidget):
             self.clock.restart()
             if self.idx >= len(self.reveals):
                 self.finish()
+            else:
+                self._sfx(f"reveal{self.reveals[self.idx].rarity}")
 
     def _start_reveals(self):
         self.clock.restart()
         if self.reveals:
             self.phase, self.idx = "reveal", 0
+            self._sfx(f"reveal{self.reveals[0].rarity}")
         else:
             self.finish()
 
@@ -126,10 +143,13 @@ class ConveneAnimation(QWidget):
         t = self.clock.elapsed() / 1000.0
         if self.phase == "launch" and t >= LAUNCH:
             self.phase = "burst"; self.clock.restart(); t = 0
+            self._sfx(f"burst{self.best}")
         elif self.phase == "burst" and t >= BURST:
             self._start_reveals(); t = 0
-        elif self.phase == "reveal" and t >= REVEAL[self.reveals[self.idx].rarity] + 0.6:
-            self.advance(); t = 0
+        elif self.phase == "reveal":
+            r = self.reveals[self.idx].rarity
+            if t >= REVEAL[r] / SPEED[r] + HOLD[r]:
+                self.advance(); t = 0
         if self.phase == "done":
             return
         p = QPainter(self)
@@ -140,7 +160,8 @@ class ConveneAnimation(QWidget):
         elif self.phase == "burst":
             self._burst(p, t)
         elif self.phase == "reveal":
-            self._reveal(p, t, self.reveals[self.idx])
+            it = self.reveals[self.idx]
+            self._reveal(p, t * SPEED[it.rarity], it)
         p.end()
 
     def _sky(self, p):
@@ -174,6 +195,8 @@ class ConveneAnimation(QWidget):
             return QPointF(a * start.x() + b * ctrl.x() + c * end.x(), a * start.y() + b * ctrl.y() + c * end.y())
         head_s = ease(u)
         col = self._comet_color(u)
+        if self.best == 5 and u > 0.72:
+            self._sfx("shimmer", "shimmer")
         # tail
         for k in range(40):
             s = head_s - k * 0.012
@@ -229,7 +252,8 @@ class ConveneAnimation(QWidget):
             p.rotate(360 / 14)
             path = QPainterPath(); path.moveTo(0, 0)
             path.lineTo(max(w, h), -40); path.lineTo(max(w, h), 40); path.closeSubpath()
-            p.setBrush(alpha(col, 0.07 if k % 2 else 0.035))
+            strength = 0.5 if item.rarity == 3 else 1.0
+            p.setBrush(alpha(col, (0.07 if k % 2 else 0.035) * strength))
             p.drawPath(path)
         p.restore()
         # portrait slides in from the right
@@ -269,11 +293,21 @@ class ConveneAnimation(QWidget):
         # name, stars and tag on the left
         tx = w * 0.08
         a = ease((t - 0.35) / 0.4)
-        f = QFont(); f.setPointSize(40); f.setBold(True); p.setFont(f)
+        f = QFont(); f.setBold(True)
+        max_w = (w * 0.62 - card_w / 2) - tx - 30          # keep the name left of the portrait
+        size = 40
+        while size > 14:
+            f.setPointSize(size)
+            if QFontMetrics(f).horizontalAdvance(item.name) <= max_w:
+                break
+            size -= 2
+        p.setFont(f)
         p.setPen(alpha(WHITE, a)); p.drawText(QPointF(tx, h * 0.62), item.name)
         f.setPointSize(30); p.setFont(f)
         for k in range(item.rarity):
             sa = ease((t - 0.6 - k * 0.12) / 0.2)
+            if sa > 0 and item.rarity >= 4:
+                self._sfx(f"star{k}", ("star", self.idx, k))
             p.setPen(alpha(col, sa))
             p.drawText(QPointF(tx + k * 44, h * 0.62 + 60), "★")
         f.setPointSize(13); f.setBold(True); p.setFont(f)

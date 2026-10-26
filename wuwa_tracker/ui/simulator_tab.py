@@ -84,6 +84,19 @@ class SimulatorTab(QWidget):
         self.anim.setChecked(True)
         f.addRow("Banner", self.kind); f.addRow("Featured 5✦", self.featured); f.addRow("", self.real)
         f.addRow("", self.anim)
+        from PySide6.QtWidgets import QSlider
+        self.sound_on = QCheckBox("Sound effects")
+        self.sound_on.setChecked(bool(state.get("sim_sound") if state.get("sim_sound") is not None else True))
+        self.volume = QSlider(Qt.Horizontal); self.volume.setRange(0, 100)
+        self.volume.setValue(int(state.get("sim_volume") or 70))
+        sv = QHBoxLayout(); sv.addWidget(self.sound_on); sv.addWidget(self.volume, 1)
+        f.addRow("", sv)
+        self.sound_on.toggled.connect(lambda on: state.set("sim_sound", on))
+        self.volume.valueChanged.connect(lambda v: state.set("sim_volume", v))
+        from .sound import SoundPlayer
+        self.sound = SoundPlayer(state.storage.path.parent / "sounds",
+                                 enabled=self.sound_on.isChecked, volume=lambda: self.volume.value() / 100)
+        QTimer.singleShot(2500, self.sound.preload)      # generate/load the sounds before the first pull
         l1.addLayout(f)
         reset = QPushButton("New session"); reset.clicked.connect(self.new_session)
         l1.addWidget(reset)
@@ -214,7 +227,8 @@ class SimulatorTab(QWidget):
         if self.anim.isChecked():
             from .convene_animation import ConveneAnimation
             self.b1.setEnabled(False); self.b10.setEnabled(False)
-            a = ConveneAnimation(self.window().centralWidget(), items, self.state.images, self.state.prydwen)
+            a = ConveneAnimation(self.window().centralWidget(), items, self.state.images, self.state.prydwen,
+                                 self.sound)
             a.finished.connect(lambda: self._after_animation(items))
         else:
             self._after_animation(items)

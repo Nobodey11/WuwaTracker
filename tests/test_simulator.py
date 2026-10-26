@@ -53,3 +53,13 @@ def test_weapon_banner_always_featured_and_start_state():
     first = g.pull_one()
     assert first.rarity == 5 and first.featured and first.result == "guaranteed"
     assert g.astrite == 160
+
+
+def test_sound_files_are_generated(tmp_path):
+    import wave
+    from wuwa_tracker.core.sounds import SOUNDS, ensure_sounds
+    paths = ensure_sounds(tmp_path)
+    assert set(paths) == set(SOUNDS)
+    for p in paths.values():
+        with wave.open(str(p)) as w:
+            assert w.getframerate() == 44100 and w.getnframes() > 1000

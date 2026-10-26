@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.3 (2026-10-26): all items in the animation + sound effects
+- The Convene animation now reveals every item in pull order, including blue 3★ weapons (shown at double speed,
+  so a 10-pull stays snappy).
+- Original sound effects, synthesised in code (no game audio): a rising whoosh, a shimmer when the comet turns gold,
+  a burst impact per rarity, reveal chimes for 3★/4★/5★ and a rising tick for each star.
+  Toggle and volume slider in the simulator panel; settings are remembered.
+- Long item names shrink to fit beside the portrait.
+
 ## 0.4.2 (2026-10-26): Convene animation
 - Convene Simulator plays a full-window pull animation (original artwork, not game footage): starry sky,
   comet streak whose colour shows the best result (late gold upgrade for a 5★), a flash and shockwave burst, then a
