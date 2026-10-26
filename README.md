@@ -1,11 +1,17 @@
 # WuWa Pull Tracker (Windows · offline · Ollama)
 
+[![tests](https://github.com/Nobodey11/WuwaTracker/actions/workflows/tests.yml/badge.svg)](https://github.com/Nobodey11/WuwaTracker/actions/workflows/tests.yml)
+![patch](https://img.shields.io/badge/game%20data-patch%203.7-f5c518)
+![python](https://img.shields.io/badge/python-3.11%2B-blue)
+
+![Tracker tab](docs/screenshot_tracker.png)
+
 A desktop version of wuwatracker.com's tracker with an exact probability calculator and a local AI assistant.
 
 ## Quick start (Windows)
 
 1. Install **Python 3.11+** from python.org (tick *Add python.exe to PATH*).
-2. Double-click **`run.bat`**. The first start creates `.venv` and installs the dependencies, which takes about a minute.
+2. Download the code (**Code → Download ZIP**, or `git clone https://github.com/Nobodey11/WuwaTracker`) and double-click **`run.bat`**. The first start creates `.venv` and installs the dependencies, which takes about a minute.
 3. **File → Import wuwatracker JSON…** and pick your export (wuwatracker.com → Settings → Export).
    Importing a newer export later only adds the new pulls.
 
@@ -31,7 +37,7 @@ All patch-specific data (banners, new characters, standard pool, banner types, p
 `wuwa_tracker/data/game_data.json`, not in the code.
 * **Automatic:** after each import the app detects new 5★ characters or banner types and asks you to classify them.
 * **Warning:** the header shows ⚠ when the data has no banner for today.
-* **Online:** set an *Update URL* (Settings → Game data) to a hosted `game_data.json`; the app updates itself on start / F5.
+* **Online:** by default the app checks this repo's `game_data.json` on start-up (F5 = check now), so pushing a data update here updates every install.
 * **Your routine:** `python tools\new_patch.py scan|phase|check`, see **docs/PATCH_UPDATE.md**.
 * **Code updates:** `update.bat` (git pull + tests).
 

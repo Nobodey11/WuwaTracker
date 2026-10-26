@@ -17,7 +17,7 @@ DEFAULTS = {
     "pity_model": "community",
     "player": "",
     # Raw URL of a game_data.json you keep up to date (e.g. on GitHub). Checked on start-up.
-    "gamedata_url": "",
+    "gamedata_url": "https://raw.githubusercontent.com/Nobodey11/WuwaTracker/main/wuwa_tracker/data/game_data.json",
     "gamedata_autocheck": True,
 }
 
