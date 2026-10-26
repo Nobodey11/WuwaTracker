@@ -199,3 +199,44 @@ def luck_percentile(h: np.ndarray, observed_pities: list[int]) -> float | None:
         total = np.convolve(total, pmf)
     obs = sum(observed_pities)
     return float(total[:obs].sum() + 0.5 * total[obs])
+
+
+def hazard_4star(rates: dict | None = None) -> np.ndarray:
+    """Chance of a 4★-or-better per pull by 4★ pity: base rate, guaranteed at hard pity (10)."""
+    rates = rates or _default_rates()
+    hard = int(rates.get("hard_pity4", 10))
+    h = np.full(hard + 1, rates.get("base4", 0.06))
+    h[0] = 0
+    h[hard] = 1.0
+    return h
+
+
+def next_pulls(h: np.ndarray, pity5: int, guaranteed: bool, featured_chance: float | None,
+               pity4: int = 0, rates: dict | None = None, horizons=(1, 10)) -> dict[int, dict]:
+    """Odds for the very next pulls from the current state.
+
+    For each horizon n returns:
+      any5      P(at least one 5★ in the next n pulls)
+      featured  P(at least one *featured* 5★) (50/50 + guarantee aware; None for non-featured banners)
+      four_plus P(at least one 4★ or better)
+    """
+    h4 = hazard_4star(rates)
+    hard4 = len(h4) - 1
+    out = {}
+    for n in horizons:
+        # any 5★: survive n pulls without a 5★ (pity can't wrap before the first hit)
+        surv5, p = 1.0, pity5
+        for _ in range(n):
+            p += 1
+            surv5 *= 1 - h[min(p, len(h) - 1)]
+        # 4★+: a 4★ OR a 5★ ends the dry streak; once a 5★/4★ hits, the guarantee is met anyway
+        surv4, p4, p5 = 1.0, pity4, pity5
+        for _ in range(n):
+            p4 += 1; p5 += 1
+            surv4 *= (1 - h4[min(p4, hard4)]) * (1 - h[min(p5, len(h) - 1)])
+        feat = None
+        if featured_chance is not None:
+            feat = featured_distribution(h, n, 1, pity5, guaranteed, featured_chance).probability
+        out[n] = {"any5": float(1 - surv5), "featured": None if feat is None else float(feat),
+                  "four_plus": float(1 - surv4)}
+    return out

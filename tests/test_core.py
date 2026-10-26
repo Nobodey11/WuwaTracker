@@ -92,3 +92,15 @@ def test_fitted_hazard_is_valid_and_flat_before_soft_pity():
     assert h[80] == 1.0 and np.all((h[1:] >= 0) & (h[1:] <= 1))
     assert len(set(np.round(h[1:66], 12))) == 1
     assert abs(pr.pity_pmf(h).sum() - 1) < 1e-9
+
+
+def test_next_pulls():
+    h = pr.hazard_community()
+    o = pr.next_pulls(h, 0, False, 0.5, 0)
+    assert abs(o[1]["any5"] - 0.008) < 1e-12 and abs(o[1]["featured"] - 0.004) < 1e-12
+    assert o[10]["four_plus"] == 1.0                      # 4★ pity guarantee
+    assert abs(o[10]["any5"] - (1 - 0.992 ** 10)) < 1e-12
+    g = pr.next_pulls(h, 0, True, 0.5, 0)
+    assert abs(g[10]["featured"] - g[10]["any5"]) < 1e-12  # guaranteed: any 5★ is featured
+    assert pr.next_pulls(h, 79, False, 1.0, 3)[1]["featured"] == 1.0   # weapon at hard pity
+    assert pr.next_pulls(h, 5, False, None)[1]["featured"] is None

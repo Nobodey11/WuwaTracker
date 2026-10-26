@@ -125,6 +125,28 @@ class OverviewTab(QWidget):
         top.addWidget(c1, 1); top.addWidget(c2, 1)
         right.addLayout(top)
 
+        # ---- odds for the next 1 / 10 pulls
+        cn, ln = card("Your next pulls")
+        grid = QGridLayout(); grid.setHorizontalSpacing(24); grid.setVerticalSpacing(6)
+        for col, txt in ((1, "Next pull"), (2, "Next 10 pulls")):
+            h = QLabel(txt); h.setObjectName("muted"); h.setAlignment(Qt.AlignCenter)
+            grid.addWidget(h, 0, col)
+        self.next_cells = {}
+        rows = (("any5", "Any 5✦", T.GOLD), ("featured", "Featured 5✦", T.GOLD), ("four_plus", "4✦ or better", T.PURPLE))
+        for r, (key, label, color) in enumerate(rows, start=1):
+            lab = QLabel(label); lab.setStyleSheet(f"color:{color}; font-size:11pt; font-weight:600;")
+            grid.addWidget(lab, r, 0)
+            for col, n in ((1, 1), (2, 10)):
+                v = QLabel("–"); v.setAlignment(Qt.AlignCenter)
+                v.setStyleSheet(f"color:{color}; font-size:18pt; font-weight:800;")
+                grid.addWidget(v, r, col)
+                self.next_cells[(key, n)] = v
+        grid.setColumnStretch(0, 1); grid.setColumnStretch(1, 1); grid.setColumnStretch(2, 1)
+        ln.addLayout(grid)
+        self.next_note = QLabel(); self.next_note.setObjectName("muted"); self.next_note.setWordWrap(True)
+        ln.addWidget(self.next_note)
+        right.addWidget(cn)
+
         cb, lb = card()
         self.now_title = QLabel(); self.now_title.setObjectName("h2")
         self.now_body = QLabel(); self.now_body.setWordWrap(True); self.now_body.setTextFormat(Qt.RichText)
@@ -151,6 +173,23 @@ class OverviewTab(QWidget):
         for k, c in self.cards.items():
             c.set_selected(k == pt)
         self.show_banner()
+
+    def show_next(self, s):
+        odds = pr.next_pulls(self.state.hazard(), s.pity5, s.guaranteed, s.featured_chance, s.pity4,
+                             self.state.gd.rates)
+        for (key, n), lab in self.next_cells.items():
+            v = odds[n][key]
+            lab.setText("–" if v is None else (f"{v * 100:.1f}%" if v < 0.9995 else "100%"))
+        if s.featured_chance is None:
+            state = "this banner has no featured 5✦"
+        elif s.featured_chance >= 1:
+            state = "5✦ is always the featured weapon"
+        else:
+            state = "next 5✦ is GUARANTEED featured" if s.guaranteed else "next 5✦ is a 50/50"
+        per = self.state.gd.rates.get("astrite_per_pull", 160)
+        self.next_note.setText(f"From 5✦ pity {s.pity5} and 4✦ pity {s.pity4}; {state}. "
+                               f"1 pull = {per} Astrite, 10 pulls = {per * 10:,}. Pity model: "
+                               f"{self.state.get('pity_model')} (change in Settings).")
 
     def show_schedule(self):
         gd = self.state.gd
@@ -207,6 +246,8 @@ class OverviewTab(QWidget):
             self.r_luck.set(f"luckier than {luckier * 100:.0f}%")
             self.luck_note.setText("Share of simulated players (same number of 5✦) who needed MORE pulls than you. "
                                    "Uses the selected pity model in Settings.")
+
+        self.show_next(s)
 
         clear_layout(self.chips)
         for f in reversed(s.five_stars):

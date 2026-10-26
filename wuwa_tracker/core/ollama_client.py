@@ -44,6 +44,12 @@ TOOLS = [
             "guaranteed": {"type": "boolean", "description": "optional override of guarantee"}},
             "required": ["pool_type", "pulls"]}}},
     {"type": "function", "function": {
+        "name": "next_pulls",
+        "description": "Chance of a 5★ (any / featured) and a 4★-or-better on the NEXT single pull and within the NEXT 10 pulls, from the user's current pity on that banner.",
+        "parameters": {"type": "object", "properties": {
+            "pool_type": {"type": "integer", "description": "1 = character banner, 2 = weapon banner, etc."}},
+            "required": ["pool_type"]}}},
+    {"type": "function", "function": {
         "name": "pulls_needed",
         "description": "How many pulls (and Astrite) are needed to get `copies` featured 5★ with a given confidence, from the current state. Also returns the expected (average) number of pulls.",
         "parameters": {"type": "object", "properties": {
@@ -107,6 +113,18 @@ class ToolBox:
                 "astrite": r.astrite, "copies": int(copies),
                 "probability_percent": round(r.probability * 100, 2),
                 "expected_featured_copies": round(r.expected_featured, 2)}
+
+    def t_next_pulls(self, pool_type):
+        s = self._banner(pool_type)
+        p, g, fc = self._state(pool_type)
+        if s and s.featured_chance is None:
+            fc = None
+        rates = self.gamedata().rates if self.gamedata else None
+        odds = pr.next_pulls(self.hazard(), p, g, fc, s.pity4 if s else 0, rates)
+        pct = lambda v: None if v is None else round(v * 100, 2)
+        return {"pool_type": pool_type, "pity5": p, "pity4": s.pity4 if s else 0, "guaranteed": g,
+                **{f"next_{n}_pull{'s' if n > 1 else ''}": {k: pct(v) for k, v in o.items()} for n, o in odds.items()},
+                "units": "percent"}
 
     def t_pulls_needed(self, pool_type, copies=1, confidence=0.9):
         p, g, fc = self._state(pool_type)

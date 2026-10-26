@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 (2026-10-26): odds for the next 1 and next 10 pulls
+- New "Your next pulls" card on the Tracker tab: chance of any 5★, the featured 5★ (50/50 or guarantee aware)
+  and a 4★-or-better on the very next pull and within the next 10 pulls, for the selected banner.
+- The same two rows on the Probability tab (they follow the pity/guarantee you enter).
+- AI assistant tool `next_pulls`.
+
 ## 0.2.0 (2026-10-26): kept up to date per patch
 - All patch-dependent knowledge moved to `wuwa_tracker/data/game_data.json` (banner types, standard/limited 5★,
   soft-pity rates, banner calendar). Nothing game-specific is hard-coded any more.

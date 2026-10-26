@@ -73,7 +73,9 @@ class CalculatorTab(QWidget):
         self.r_99 = StatRow("Pulls for a 99.99 % chance (practical worst case)")
         self.r_expc = StatRow("Expected featured copies with these pulls")
         self.r_dist = StatRow("Chance of exactly 0 / 1 / 2 / … copies")
-        for r in (self.r_exp, self.r_50, self.r_90, self.r_99, self.r_expc, self.r_dist):
+        self.r_next1 = StatRow("Next pull: any 5✦ / featured / 4✦ or better", T.GOLD)
+        self.r_next10 = StatRow("Next 10 pulls: any 5✦ / featured / 4✦ or better", T.GOLD)
+        for r in (self.r_next1, self.r_next10, self.r_exp, self.r_50, self.r_90, self.r_99, self.r_expc, self.r_dist):
             lr.addWidget(r)
         right.addWidget(cr)
 
@@ -150,6 +152,13 @@ class CalculatorTab(QWidget):
         what = ("featured Resonator" if is_char else "featured Weapon") + (f" ×{k}" if k > 1 else "")
         self.big_sub.setText(f"Chance to get the {what} within {n} pulls ({n * self.per_pull:,} Astrite), "
                              f"starting at pity {pity}" + (", guaranteed" if g else (", 50/50" if is_char else "")) + ".")
+        s = self.state.stats.get(self.banner.currentData())
+        pity4 = s.pity4 if (s and self.use_current.isChecked()) else 0
+        nxt = pr.next_pulls(h, pity, g, fc, pity4, self.state.gd.rates)
+        pct = lambda v: f"{v * 100:.1f}%" if v < 0.9995 else "100%"
+        for row, horizon in ((self.r_next1, 1), (self.r_next10, 10)):
+            o = nxt[horizon]
+            row.set(f"{pct(o['any5'])}  /  {pct(o['featured'])}  /  {pct(o['four_plus'])}")
         exp = pr.expected_pulls_featured(h, k, pity, g, fc)
         self.r_exp.set(f"{exp:.1f} pulls  ({exp * self.per_pull:,.0f} Astrite)")
         for row, c in ((self.r_50, 0.5), (self.r_90, 0.9), (self.r_99, 0.9999)):
