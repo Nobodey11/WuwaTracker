@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.4 (2026-10-26): manual reveals + new sound design
+- Reveals no longer advance by themselves: each item waits for a click or key press ("Click to continue ▶").
+  Clicking during a reveal finishes it instantly; Skip/Esc still jumps to the results.
+- Sound effects redesigned in a cinematic style inspired by the game's Convene (still fully original/synthesised):
+  stereo, long hall reverb, deep sub-bass swells and drops, airy wind risers, glassy crystal chimes and choir-like pads.
+  A 5★ gets a gold cascade, a big choir chord and sparkles. Sounds are generated in the background on first start.
+
 ## 0.4.3 (2026-10-26): all items in the animation + sound effects
 - The Convene animation now reveals every item in pull order, including blue 3★ weapons (shown at double speed,
   so a 10-pull stays snappy).

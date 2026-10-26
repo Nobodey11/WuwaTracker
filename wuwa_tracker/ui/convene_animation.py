@@ -23,7 +23,6 @@ RARITY = {3: BLUE, 4: PURPLE, 5: GOLD}
 LAUNCH, BURST = 1.9, 0.7                     # seconds
 REVEAL = {3: 1.0, 4: 2.0, 5: 2.8}            # timeline length per reveal, by rarity
 SPEED = {3: 2.0, 4: 1.0, 5: 1.0}             # 3★ reveals play at double speed
-HOLD = {3: 0.15, 4: 0.6, 5: 1.0}             # pause after a reveal before auto-advancing
 
 
 def ease(t):          # smoothstep 0..1
@@ -65,6 +64,7 @@ class ConveneAnimation(QWidget):
                       for _ in range(160)]
         self.sparks = [(rnd.uniform(0, 6.28), rnd.uniform(0.35, 1.0), rnd.uniform(1.5, 4)) for _ in range(70)]
         self.phase = "launch"
+        self.offset = 0.0
         self.idx = 0
         self.clock = QElapsedTimer(); self.clock.start()
         self.total = QElapsedTimer(); self.total.start()
@@ -110,14 +110,26 @@ class ConveneAnimation(QWidget):
         if self.phase in ("launch", "burst"):
             self._start_reveals()
         elif self.phase == "reveal":
+            if not self._reveal_done():             # first click: finish this reveal instantly
+                self.offset = 99.0
+                return
             self.idx += 1
+            self.offset = 0.0
             self.clock.restart()
             if self.idx >= len(self.reveals):
                 self.finish()
             else:
                 self._sfx(f"reveal{self.reveals[self.idx].rarity}")
 
+    def _reveal_t(self):
+        it = self.reveals[self.idx]
+        return (self.clock.elapsed() / 1000.0 + self.offset) * SPEED[it.rarity]
+
+    def _reveal_done(self):
+        return self._reveal_t() >= REVEAL[self.reveals[self.idx].rarity]
+
     def _start_reveals(self):
+        self.offset = 0.0
         self.clock.restart()
         if self.reveals:
             self.phase, self.idx = "reveal", 0
@@ -146,10 +158,7 @@ class ConveneAnimation(QWidget):
             self._sfx(f"burst{self.best}")
         elif self.phase == "burst" and t >= BURST:
             self._start_reveals(); t = 0
-        elif self.phase == "reveal":
-            r = self.reveals[self.idx].rarity
-            if t >= REVEAL[r] / SPEED[r] + HOLD[r]:
-                self.advance(); t = 0
+        # reveals never auto-advance: they wait for a click / key press
         if self.phase == "done":
             return
         p = QPainter(self)
@@ -161,7 +170,7 @@ class ConveneAnimation(QWidget):
             self._burst(p, t)
         elif self.phase == "reveal":
             it = self.reveals[self.idx]
-            self._reveal(p, t * SPEED[it.rarity], it)
+            self._reveal(p, min(self._reveal_t(), REVEAL[it.rarity] + 50), it)
         p.end()
 
     def _sky(self, p):
@@ -306,7 +315,7 @@ class ConveneAnimation(QWidget):
         f.setPointSize(30); p.setFont(f)
         for k in range(item.rarity):
             sa = ease((t - 0.6 - k * 0.12) / 0.2)
-            if sa > 0 and item.rarity >= 4:
+            if sa > 0 and item.rarity >= 4 and self.offset == 0:
                 self._sfx(f"star{k}", ("star", self.idx, k))
             p.setPen(alpha(col, sa))
             p.drawText(QPointF(tx + k * 44, h * 0.62 + 60), "★")
@@ -320,7 +329,11 @@ class ConveneAnimation(QWidget):
         if tag:
             p.setPen(alpha(QColor("#ff8a8a") if item.result == "lost" else QColor("#7ef0b0"), ease((t - 1.0) / 0.3)))
             p.drawText(QPointF(tx, h * 0.62 + 100), tag)
-        self._caption(p, f"{self.idx + 1} / {len(self.reveals)}   ·   click to continue", alpha(WHITE, 0.45))
+        done = t >= REVEAL[item.rarity]
+        pulse = 0.45 + 0.4 * (0.5 + 0.5 * math.sin(self.total.elapsed() / 1000.0 * 4)) if done else 0.3
+        last = self.idx + 1 == len(self.reveals)
+        hint = ("Click to see results  ▶" if last else "Click to continue  ▶") if done else ""
+        self._caption(p, f"{self.idx + 1} / {len(self.reveals)}" + (f"      {hint}" if hint else ""), alpha(WHITE, pulse))
 
     def _caption(self, p, text, color):
         f = QFont(); f.setPointSize(11); p.setFont(f); p.setPen(color)

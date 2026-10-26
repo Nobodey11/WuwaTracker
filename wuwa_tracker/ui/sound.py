@@ -23,13 +23,31 @@ class SoundPlayer:
         self.paths: dict[str, Path] = {}
         self.effects = {}
         self.ok = None
+        self._thread = None
+
+    def preload(self):
+        """Generate the WAV files in a background thread (takes about a second the first time)."""
+        if self._thread is None and self.ok is None:
+            import threading
+            from ..core.sounds import ensure_sounds
+
+            def work():
+                try:
+                    self.paths = ensure_sounds(self.folder)
+                except Exception:
+                    self.paths = {}
+            self._thread = threading.Thread(target=work, daemon=True)
+            self._thread.start()
 
     def _load(self):
         if self.ok is not None:
             return self.ok
         try:
-            from ..core.sounds import ensure_sounds
-            self.paths = ensure_sounds(self.folder)
+            if self._thread is None:
+                self.preload()
+            self._thread.join(timeout=5)
+            if not self.paths:
+                raise RuntimeError("sounds not generated")
             if HAVE_QT_AUDIO:
                 for name, p in self.paths.items():
                     e = QSoundEffect()
@@ -39,9 +57,6 @@ class SoundPlayer:
         except Exception:
             self.ok = False
         return self.ok
-
-    def preload(self):
-        self._load()
 
     def play(self, name: str):
         if not self.enabled() or not self._load() or name not in self.paths:
