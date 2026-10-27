@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.1 (2026-10-27): import from game fixed
+- **Scrambled Client.log**: newer game versions XOR-encode the log, so the history link was never found. The log is
+  now decoded first (the raw text and the KRSDK debug.log are still tried too).
+- **Finds the install anywhere**: game folder from Settings, Windows registry traces (MUI cache, firewall rules,
+  uninstall entries), *every* Steam library listed in Steam's libraryfolders.vdf (e.g. D:\Platforms\Steam) and common
+  folders on all drives; both the launcher folder and the "Wuthering Waves Game" subfolder are checked.
+- **API fixes**: browser-style headers (Origin/Referer/User-Agent) like working exporters, correct CN endpoint
+  (gmserver-api.aki-game2.com), and a clear message when the link has expired instead of silently importing 0 pulls.
+- **No duplicates, right times**: the server time zone is auto-detected by matching the downloaded records with pulls
+  you already have, and already-known pulls are skipped by banner + time + item.
+- Runs in the background; if no link is found you can pick your game folder (remembered) or paste the link; a summary
+  shows how many new pulls were added per banner.
+
 ## 0.5.0 (2026-10-26): redemption codes + characters owned outside pulls
 - New **Codes** tab: active redemption codes from Prydwen.gg with reward icons, a Copy button and a "Redeemed" tick-off
   (remembered). The tab shows a 🎁 badge with the number of codes you still have to redeem, and the status bar announces

@@ -32,19 +32,32 @@ class GameDataUpdateWorker(QThread):
 
 
 class GameImportWorker(QThread):
+    """Finds the history link (unless given) and downloads the records, off the UI thread."""
     log = Signal(str)
-    done = Signal(list, str, str)
+    not_found = Signal(list)                 # log files that were checked
+    done = Signal(object, str)               # GameImportResult | None, error text
 
-    def __init__(self, url, offset, latest):
+    def __init__(self, game_dir, url, offset, existing):
         super().__init__()
-        self.url, self.offset, self.latest = url, offset, latest
+        self.game_dir, self.url, self.offset, self.existing = game_dir, url, offset, existing
+        self.found_in = None
 
     def run(self):
         try:
-            pulls, player = game_import.import_from_game(self.url, self.offset, self.latest, log=self.log.emit)
-            self.done.emit(pulls, player, "")
+            url = self.url
+            if not url:
+                self.log.emit("Looking for the Convene history link in the game logs…")
+                res = game_import.find_gacha_url(self.game_dir)
+                if not res.url:
+                    self.not_found.emit([str(f) for f in res.checked])
+                    return
+                url, self.found_in = res.url, res.source
+                self.log.emit(f"Found the history link in {res.source}")
+            self.log.emit("Downloading your Convene records from the game server…")
+            result = game_import.import_from_game(url, self.offset, self.existing, log=self.log.emit)
+            self.done.emit(result, "")
         except Exception as e:
-            self.done.emit([], "", str(e))
+            self.done.emit(None, str(e))
 
 
 def app_icon() -> QIcon:
@@ -283,37 +296,62 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Imported {new:,} new pulls ({total:,} in file, duplicates skipped).", 8000)
         self.ask_new_content(only_if_any=True)
 
-    def import_game(self):
-        url = game_import.find_gacha_url(self.state.get("game_dir") or None)
-        if not url:
-            url, ok = QInputDialog.getText(
-                self, "Import from game",
-                "Couldn't find the Convene history URL in the game log.\n"
-                "Open the game → Convene → History once, set your game folder in Settings, and retry.\n\n"
-                "Or paste the history URL here:")
-            if not ok or not url.strip():
-                return
-            url = url.strip()
-        latest = {}
-        for p in self.state.storage.load(game_import.parse_gacha_url(url)["playerId"] or None):
-            if p.pool_type not in latest or p.time > latest[p.pool_type]:
-                latest[p.pool_type] = p.time
+    def import_game(self, url: str | None = None, game_dir: str | None = None):
+        if getattr(self, "gw", None) is not None and self.gw.isRunning():
+            return
+        game_dir = game_dir or self.state.get("game_dir") or None
         off = game_import.SERVER_UTC_OFFSET.get(self.state.get("server_region"), 8)
-        self.statusBar().showMessage("Fetching from game servers…")
-        self.gw = GameImportWorker(url, off, latest)
+        existing = self.state.storage.load(None)
+        self.statusBar().showMessage("Import from game: starting…")
+        self.gw = GameImportWorker(game_dir, url, off, existing)
         self.gw.log.connect(lambda s: self.statusBar().showMessage(s))
+        self.gw.not_found.connect(self._game_link_not_found)
         self.gw.done.connect(self.on_game_import)
         self.gw.start()
 
-    def on_game_import(self, pulls, player, err):
+    def _game_link_not_found(self, checked):
+        self.statusBar().clearMessage()
+        box = QMessageBox(self)
+        box.setWindowTitle("Import from game")
+        box.setIcon(QMessageBox.Information)
+        where = ("Checked these log files, but none contained a history link:\n• " + "\n• ".join(checked[:6])
+                 if checked else "No Wuthering Waves install with log files was found automatically.")
+        box.setText("Couldn't find your Convene history link.")
+        box.setInformativeText("1. Start the game and open Convene → History (let the page load).\n"
+                               "2. Then import again, or pick your game folder / paste the link below.\n\n" + where)
+        pick = box.addButton("Choose game folder…", QMessageBox.ActionRole)
+        paste = box.addButton("Paste link…", QMessageBox.ActionRole)
+        box.addButton(QMessageBox.Cancel)
+        box.exec()
+        if box.clickedButton() is pick:
+            d = QFileDialog.getExistingDirectory(self, "Select your Wuthering Waves folder", self.state.get("game_dir"))
+            if d:
+                self.state.set("game_dir", d)
+                self.import_game(game_dir=d)
+        elif box.clickedButton() is paste:
+            url, ok = QInputDialog.getText(self, "Import from game", "Paste the Convene history link:")
+            if ok and url.strip():
+                self.import_game(url=url.strip())
+
+    def on_game_import(self, result, err):
         if err:
-            QMessageBox.warning(self, "Game import failed", err + "\n\nThe history link expires after a while; "
-                                "open Convene → History in-game again and retry."); return
-        new = self.state.storage.add_pulls(pulls)
-        if player:
-            self.state.set("player", player)
+            self.statusBar().clearMessage()
+            QMessageBox.warning(self, "Game import failed", err)
+            return
+        src = getattr(self.gw, "found_in", None)
+        if src is not None and not self.state.get("game_dir"):     # remember where the game is
+            parts = list(src.parents)
+            game_root = next((p for p in parts if (p / "Client").is_dir()), None)
+            if game_root:
+                self.state.set("game_dir", str(game_root))
+        new = self.state.storage.add_pulls(result.pulls)
+        if result.player_id:
+            self.state.set("player", result.player_id)
         self.state.reload()
-        self.statusBar().showMessage(f"Game import done: {new} new pulls.", 8000)
+        self.statusBar().showMessage(f"Game import done: {new} new pull(s) for player {result.player_id}.", 10000)
+        QMessageBox.information(self, "Import from game",
+                                f"Imported {new} new pull(s) for player {result.player_id}.\n\n"
+                                + "\n".join(l.strip() for l in result.log if l.strip()))
         self.ask_new_content(only_if_any=True)
 
     def export_csv(self):
