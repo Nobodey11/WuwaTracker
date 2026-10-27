@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QThread, Signal
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QLineEdit,
-                               QPushButton, QScrollArea, QVBoxLayout, QWidget)
+from PySide6.QtGui import QCursor
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFrame, QGraphicsOpacityEffect, QHBoxLayout, QInputDialog, QLabel,
+                               QLineEdit, QMenu, QPushButton, QScrollArea, QVBoxLayout, QWidget)
 
 from ..core import collection
 from . import theme as T
@@ -32,8 +33,12 @@ class _ListLoader(QThread):
 
 
 class Tile(QFrame):
+    clicked = Signal(object)
+
     def __init__(self, item: collection.Item, images, prydwen_on):
         super().__init__()
+        self.item = item
+        self.setCursor(Qt.PointingHandCursor)
         self.setFixedSize(108, 150)
         col = RAR.get(item.rarity, T.BORDER)
         self.setStyleSheet(f"QFrame {{ background:{T.CARD}; border:1px solid {col if item.owned else T.BORDER};"
@@ -57,10 +62,17 @@ class Tile(QFrame):
         if item.limited is not None:
             tip += " · limited" if item.limited else " · standard"
         tip += f"\n{('Owned: ' + str(item.copies) + ' copies (' + item.level + ')') if item.owned else 'Not owned'}"
-        self.setToolTip(tip)
+        if collection.is_rover(item.name):
+            tip += "\nThe Rover is always owned."
+        self.setToolTip(tip + "\nClick to add or change copies you own.")
         if not item.owned:
             eff = QGraphicsOpacityEffect(self); eff.setOpacity(0.38)
             self.setGraphicsEffect(eff)
+
+    def mouseReleaseEvent(self, ev):
+        if ev.button() in (Qt.LeftButton, Qt.RightButton):
+            self.clicked.emit(self.item)
+        super().mouseReleaseEvent(ev)
 
 
 class CollectionTab(QWidget):
@@ -82,9 +94,12 @@ class CollectionTab(QWidget):
         self.limited = QCheckBox("Limited only")
         self.search = QLineEdit(); self.search.setPlaceholderText(tr("Search…")); self.search.setMaximumWidth(180)
         self.reload_btn = QPushButton("↻"); self.reload_btn.setToolTip("Reload the character/weapon lists from Prydwen")
+        self.add_btn = QPushButton("＋ Add manually…")
+        self.add_btn.setToolTip("Add characters or weapons you own but didn't pull (gifts, free units, selectors)")
+        self.add_btn.clicked.connect(self.add_manual)
         for w in (self.kind, self.rarity, self.owned, self.group, self.limited, self.search):
             top.addWidget(w)
-        top.addStretch(); top.addWidget(self.reload_btn)
+        top.addStretch(); top.addWidget(self.add_btn); top.addWidget(self.reload_btn)
         v.addLayout(top)
         self.summary = QLabel(); self.summary.setObjectName("muted")
         v.addWidget(self.summary)
@@ -94,8 +109,8 @@ class CollectionTab(QWidget):
         sc.setWidget(inner)
         v.addWidget(sc, 1)
         credit = QLabel(f"Names, icons and character art from <a style='color:{T.GOLD}' "
-                        "href='https://www.prydwen.gg/wuthering-waves'>Prydwen.gg</a>; ownership from your pulls and "
-                        "☰ → Owned outside pulls.")
+                        "href='https://www.prydwen.gg/wuthering-waves'>Prydwen.gg</a>; ownership from your pulls plus what you "
+                        "add yourself: click any card (or ＋ Add manually) to add copies. The Rover is always owned.")
         credit.setOpenExternalLinks(True); credit.setObjectName("muted")
         v.addWidget(credit)
         for w in (self.kind, self.rarity, self.owned, self.group):
@@ -161,9 +176,43 @@ class CollectionTab(QWidget):
         clear_layout(self.flow)
         on = self.state.prydwen_on()
         for it in sel:
-            self.flow.addWidget(Tile(it, self.state.images, on))
+            tile = Tile(it, self.state.images, on)
+            tile.clicked.connect(self.tile_menu)
+            self.flow.addWidget(tile)
         s = collection.summary(self.items)
         name = "resonators" if kind == "resonator" else "weapons"
         a5, n5 = s[f"{kind}_5"]; a4, n4 = s[f"{kind}_4"]
         self.summary.setText(f"5★ {name}: <b>{a5}</b> / {n5} owned  ·  4★ {name}: <b>{a4}</b> / {n4} owned  ·  "
                              f"showing {len(sel)}")
+
+    # ---------------- manual ownership
+    def add_manual(self):
+        from .extras_dialog import ExtrasDialog
+        ExtrasDialog(self.state, self).exec()
+        self.refresh()
+
+    def tile_menu(self, item):
+        ex_key, extra = next(((k, n) for k, n in self.state.extras().items() if k.lower() == item.name.lower()),
+                             (item.name, 0))
+        from_pulls = item.copies - extra - (1 if collection.is_rover(item.name) else 0)
+        m = QMenu(self)
+        head = m.addAction(f"{item.name}: {item.copies} owned" + (f" ({item.level})" if item.owned else ""))
+        head.setEnabled(False)
+        a_plus = m.addAction("＋ I own one more copy")
+        a_set = m.addAction("Set copies owned outside pulls…")
+        a_clear = m.addAction("Remove manually added copies") if extra else None
+        act = m.exec(QCursor.pos())
+        if act is None:
+            return
+        if act is a_plus:
+            self.state.set_extra(ex_key, extra + 1)
+        elif act is a_set:
+            what = ("sequence copies for the Rover (it is always owned; 1 = S1)" if collection.is_rover(item.name)
+                    else "copies you got without pulling (gifts, free units, selectors)")
+            n, ok = QInputDialog.getInt(self, item.name, f"Number of {what}.\nFrom your pulls: {max(0, from_pulls)}.",
+                                        extra, 0, 20)
+            if not ok:
+                return
+            self.state.set_extra(ex_key, n)
+        elif act is a_clear:
+            self.state.set_extra(ex_key, 0)

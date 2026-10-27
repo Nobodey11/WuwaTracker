@@ -6,6 +6,12 @@ from dataclasses import dataclass
 from .prydwen import key
 
 WEAPON_ID_MIN = 100000
+# The Rover (main character) is owned by every account from the start, in every attunement.
+ROVERS = ["Rover (Spectro)", "Rover (Havoc)", "Rover (Aero)"]
+
+
+def is_rover(name: str) -> bool:
+    return key(name).startswith("rover")
 
 
 @dataclass
@@ -61,10 +67,18 @@ def build(pulls, extras: dict[str, int], char_list: dict[str, dict], weapon_list
         items[k].copies += 1
         if kind == "weapon" and not items[k].resource_id:
             items[k].resource_id = p.resource_id
+    if not any(is_rover(i.name) for k, i in items.items() if k[0] == "resonator"):
+        for r in ROVERS:
+            items[("resonator", key(r))] = Item(r, "resonator", 5, r[r.find("(") + 1:-1], 0)
+    for (kind, _), it in items.items():
+        if kind == "resonator" and is_rover(it.name):
+            it.copies += 1                 # always owned; extra copies (sequence nodes) can be added manually
+            it.limited = None
     for name, n in (extras or {}).items():
         k = ("weapon", key(name)) if ("weapon", key(name)) in items else ("resonator", key(name))
-        if k not in items:
-            items[k] = Item(name, k[0], 0, "", 0)
+        if k not in items:                 # added by hand and not in the lists: guess the rarity from game data
+            rar = 5 if gd and name in gd.known_5stars else 4
+            items[k] = Item(name, k[0], rar, "", 0, "", 0, lim(name, rar))
         items[k].copies += int(n)
     return sorted(items.values(), key=lambda i: (i.kind != "resonator", -i.rarity, not i.owned, i.name.lower()))
 

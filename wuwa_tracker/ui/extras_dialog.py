@@ -14,13 +14,16 @@ class ExtrasDialog(QDialog):
         v = QVBoxLayout(self)
         info = QLabel("Characters or weapons you got without pulling (event gifts, free units, selectors). "
                       "They count as owned in the Prydwen tab (badges, 'Only mine'), the character panel and the AI "
-                      "assistant. Your pull statistics are not changed.")
+                      "assistant and the Collection. Your pull statistics are not changed. The Rover is always owned; add copies "
+                      "to a Rover to set its sequence (1 copy = S1).")
         info.setWordWrap(True); info.setObjectName("muted")
         v.addWidget(info)
         self.list = QListWidget(); v.addWidget(self.list)
         row = QHBoxLayout()
         self.name = QComboBox(); self.name.setEditable(True); self.name.setMinimumWidth(220)
-        names = sorted({c["name"] for c in state.prydwen.cached_character_list().values()} | state.gd.known_5stars)
+        from ..core.collection import ROVERS
+        names = sorted({c["name"] for c in state.prydwen.cached_character_list().values()} | state.gd.known_5stars
+                       | {w["name"] for w in state.prydwen.cached_weapon_list().values()} | set(ROVERS))
         self.name.addItems(names); self.name.setCurrentText("")
         self.copies = QSpinBox(); self.copies.setRange(1, 7); self.copies.setPrefix("× ")
         add = QPushButton("Add / update"); rem = QPushButton("Remove selected")

@@ -40,6 +40,8 @@ Everything from the 0.6–1.0 roadmap in PLAN.md, shipped together.
 **Collection & calendar (0.9)**
 - **Collection tab**: every resonator and weapon (Prydwen lists), owned in colour with S0–S6 / R1–R5, filters by
   rarity, element/weapon type, owned and limited.
+  Click any card (or ＋ Add manually) to add copies you own without pulling; the **Rover** (every attunement) is always
+  owned, and adding copies to a Rover sets its sequence.
 - **Calendar tab**: current and upcoming banners from Prydwen's banner page (exact times for your server region),
   game-data banners and events, your own events, and daily/weekly/monthly resets, with live countdowns.
 - **Rerun tracker**: every known run of each limited 5★ (game data, Prydwen, remembered over time, and your own pulls),

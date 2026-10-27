@@ -129,6 +129,13 @@ class AppState(QObject):
         for p in self.pulls:
             if p.quality >= 4:
                 out[key(p.name)] = out.get(key(p.name), 0) + 1
+        from ..core.collection import ROVERS, is_rover
+        rovers = set(ROVERS) | {c["name"] for c in self.prydwen.cached_character_list().values() if is_rover(c["name"])}
+        tl = self.prydwen.cached_tier_list()
+        if tl:
+            rovers |= {e.name for e in tl.entries if is_rover(e.name)}
+        for r in rovers:                      # the Rover is always owned
+            out[key(r)] = out.get(key(r), 0) + 1
         for name, n in (self.get("extra_owned") or {}).items():
             out[key(name)] = out.get(key(name), 0) + int(n)
         return out

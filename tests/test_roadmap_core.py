@@ -324,3 +324,14 @@ def test_achievements_and_board():
     board = add_to_board([], e)
     assert board[0]["per_featured"] == e["per_featured"]
     assert add_to_board(board, None) == board
+
+
+def test_rover_always_owned_and_manual_items():
+    gd = default_gamedata()
+    items = {i.name: i for i in collection.build([], {}, {}, {}, gd)}
+    assert all(items[r].owned and items[r].level == "S0" for r in collection.ROVERS)
+    chars = {"roverspectro": {"name": "Rover (Spectro)", "slug": "rover-spectro", "rarity": 5, "element": "Spectro"}}
+    items = {i.name: i for i in collection.build([], {"Rover (Spectro)": 2, "Hsin": 1, "Some Gift Weapon": 1}, chars, {}, gd)}
+    assert items["Rover (Spectro)"].level == "S2" and "Rover (Havoc)" not in items     # Prydwen list wins
+    assert items["Hsin"].owned and items["Hsin"].rarity == 5
+    assert items["Some Gift Weapon"].rarity == 4 and items["Some Gift Weapon"].owned
