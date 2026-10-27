@@ -21,7 +21,20 @@ Rules:
 - Use prydwen_character to judge how strong a character is (Prydwen tier list) before recommending a pull; credit Prydwen.
 - 1 pull = 160 Astrite. Character banner: 50/50 on the first 5★, guaranteed after a loss. Weapon banner: 5★ is always the featured weapon. Hard pity 80.
 - The soft-pity curve after pull 66 is a community estimate, not official; say so when it matters.
+- For "can I afford / when can I / what should I pull" questions use plan_astrite and wishlist_odds.
+- Use search_notes for game knowledge (guides, banners, the user's own notes) instead of guessing.
 - Answer concisely, with the key numbers in bold. Answer in the user's language (Dutch or English)."""
+
+PERSONAS = {
+    "analyst": ("Analyst", "Tone: calm, precise and neutral, like a data analyst. Mention uncertainty where relevant."),
+    "hype": ("Hype friend", "Tone: an excited gaming friend: energetic, encouraging, a few emojis, but the numbers stay exact."),
+    "coach": ("Saving coach", "Tone: a strict but kind Astrite-saving coach who discourages impulse pulls unless the odds are good."),
+}
+
+
+def system_prompt(persona: str | None = None) -> str:
+    extra = PERSONAS.get(persona or "", (None, ""))[1]
+    return SYSTEM_PROMPT + ("\n" + extra if extra else "")
 
 TOOLS = [
     {"type": "function", "function": {
@@ -70,6 +83,30 @@ TOOLS = [
         "name": "redemption_codes",
         "description": "Currently active Wuthering Waves redemption codes and their rewards (from Prydwen.gg), and which ones the user already marked as redeemed.",
         "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {
+        "name": "plan_astrite",
+        "description": "Astrite planner: pulls the user will have by a date (current Astrite + Radiant Tides + daily income) and the chance of the featured 5★ with those pulls, from the current pity/guarantee.",
+        "parameters": {"type": "object", "properties": {
+            "astrite": {"type": "integer", "description": "Astrite owned now"},
+            "tides": {"type": "integer", "description": "Radiant Tides (or Forging Tides for the weapon banner) owned now"},
+            "target_date": {"type": "string", "description": "YYYY-MM-DD, e.g. the start/end of the wanted banner"},
+            "astrite_per_day": {"type": "number", "description": "optional; default = the user's logged/estimated income"},
+            "pool_type": {"type": "integer", "description": "1 = character banner (default), 2 = weapon banner"},
+            "copies": {"type": "integer"}},
+            "required": ["astrite", "target_date"]}}},
+    {"type": "function", "function": {
+        "name": "wishlist_odds",
+        "description": "Chance to get SEVERAL wishes in priority order with one budget (e.g. 'Lynae S1 and her weapon'), plus which wish to drop to raise the odds.",
+        "parameters": {"type": "object", "properties": {
+            "wishes": {"type": "array", "items": {"type": "object", "properties": {
+                "name": {"type": "string"}, "kind": {"type": "string", "enum": ["character", "weapon"]},
+                "copies": {"type": "integer"}}, "required": ["name"]}},
+            "astrite": {"type": "integer"}, "tides": {"type": "integer"}, "forging_tides": {"type": "integer"}},
+            "required": ["wishes", "astrite"]}}},
+    {"type": "function", "function": {
+        "name": "search_notes",
+        "description": "Search local knowledge: the user's own notes, cached Prydwen character guides (ratings, best weapons, echo sets), the tier list and the banner calendar.",
+        "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
     {"type": "function", "function": {
         "name": "astrite_to_pulls",
         "description": "Convert Astrite (and optional Radiant/Forging Tides already owned) into number of pulls.",
@@ -188,6 +225,46 @@ class ToolBox:
         return {"source": "prydwen.gg", "list_updated": d.get("updated"),
                 "active": [{"code": c["code"], "redeemed_by_user": c["code"] in redeemed,
                             "rewards": [f"{r['name']} x{r['amount']}" for r in c["rewards"]]} for c in d["active"]]}
+
+    def t_plan_astrite(self, astrite, target_date, tides=0, astrite_per_day=None, pool_type=1, copies=1):
+        from datetime import date
+        from . import planner
+        p, g, fc = self._state(pool_type)
+        rate = astrite_per_day
+        if rate is None:
+            rate = (getattr(self, "income", None) or (lambda: {"astrite_per_day": 0}))()["astrite_per_day"]
+        pl = planner.plan(self.hazard(), int(astrite), int(tides or 0), date.fromisoformat(str(target_date)[:10]),
+                          float(rate), copies=int(copies or 1), pity=p, guaranteed=g, featured_chance=fc)
+        return {"target_date": str(target_date)[:10], "days": pl.days, "astrite_per_day_used": round(float(rate), 1),
+                "astrite_at_target": pl.astrite_at_target, "pulls_available": pl.pulls,
+                "start_pity": p, "guaranteed": g, "copies": int(copies or 1),
+                "probability_percent": round(pl.probability * 100, 2),
+                "pulls_for_50pct": pl.pulls_for_50, "pulls_for_90pct": pl.pulls_for_90}
+
+    def t_wishlist_odds(self, wishes, astrite, tides=0, forging_tides=0):
+        from . import planner
+        ws = [planner.Wish(w.get("name", "?"), w.get("kind", "character"), int(w.get("copies") or 1)) for w in wishes]
+        c = self._banner(1)
+        wb = self._banner(2)
+        h = self.hazard()
+        r = planner.wishlist(h, h, ws, int(astrite) // ASTRITE_PER_PULL, int(tides or 0), int(forging_tides or 0),
+                             c.pity5 if c else 0, c.guaranteed if c else False, wb.pity5 if wb else 0)
+        return {"budget_pulls_from_astrite": r.budget_pulls, "radiant_tides": r.tides, "forging_tides": r.forging,
+                "wishes": [{"name": w.name, "kind": w.kind, "copies": w.copies,
+                            "p_this_and_all_before_percent": round(cp * 100, 1),
+                            "p_if_alone_percent": round(a * 100, 1), "expected_pulls": round(e, 1),
+                            "p_all_others_if_dropped_percent": round(d * 100, 1)}
+                           for w, cp, a, e, d in zip(r.wishes, r.cumulative, r.alone, r.expected_pulls, r.drop_one)],
+                "p_everything_percent": round(r.all * 100, 1), "advice": r.advice()}
+
+    def t_search_notes(self, query):
+        from . import rag
+        dirs = getattr(self, "rag_dirs", None)
+        if not dirs:
+            return {"error": "no local knowledge configured"}
+        notes, pryd, gd_raw = dirs()
+        hits = rag.search(query, notes, pryd, gd_raw)
+        return {"results": hits} if hits else {"results": [], "note": "nothing found in local notes/guides"}
 
     def t_astrite_to_pulls(self, astrite, tides=0):
         return {"pulls": int(astrite) // ASTRITE_PER_PULL + int(tides or 0),

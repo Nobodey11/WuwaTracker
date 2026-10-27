@@ -13,6 +13,7 @@ wuwa_tracker/data/game_data.json
 | `limited_5star_*` / `standard_5star_*` | Which 5★ items count as a won or lost 50/50 | New characters every patch; the standard pool rarely |
 | `banner_types` | `cardPoolType` id → name + kind (50/50 rules or not) | When Kuro adds a new convene type |
 | `rates` | Base rates, soft-pity steps, hard pity, Astrite per pull | Rarely (only if new info appears) |
+| `events` | Optional `[{"name", "start", "end", "note"}]` shown in the Calendar tab (with end-of-event alerts) | When you want; Prydwen has no event list |
 | `data_version` | `YYYY.MM.DD[.n]`, bumped automatically by the tool | Every change |
 
 ## How the app keeps itself current

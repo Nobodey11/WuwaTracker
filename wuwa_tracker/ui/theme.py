@@ -1,15 +1,21 @@
-GOLD = "#f5c518"
-PURPLE = "#b48cff"
-BLUE = "#6aa9ff"
-GREEN = "#2fbf71"
-RED = "#e5484d"
-ORANGE = "#e0a020"
-BG = "#0e0f13"
-CARD = "#181a20"
-CARD2 = "#20232b"
-TEXT = "#e8e8ec"
-MUTED = "#9a9caa"
-BORDER = "#2a2d36"
+"""Colours and the Qt stylesheet. Two palettes; the choice is read once at start-up (Settings → Appearance)."""
+from ..core.paths import ui_prefs
+
+PALETTES = {
+    "dark": dict(GOLD="#f5c518", PURPLE="#b48cff", BLUE="#6aa9ff", GREEN="#2fbf71", RED="#e5484d", ORANGE="#e0a020",
+                 BG="#0e0f13", CARD="#181a20", CARD2="#20232b", TEXT="#e8e8ec", MUTED="#9a9caa", BORDER="#2a2d36",
+                 ALT="#1c1e25", ON_ACCENT="#111111"),
+    "light": dict(GOLD="#c99700", PURPLE="#7b4fd6", BLUE="#2f6fd6", GREEN="#1f9d5a", RED="#d13438", ORANGE="#c47f00",
+                  BG="#f3f4f7", CARD="#ffffff", CARD2="#eceef3", TEXT="#1b1d24", MUTED="#5d6170", BORDER="#d6d9e1",
+                  ALT="#f6f7fa", ON_ACCENT="#111111"),
+}
+NAME = ui_prefs().get("theme", "dark")
+if NAME not in PALETTES:
+    NAME = "dark"
+_P = PALETTES[NAME]
+GOLD, PURPLE, BLUE, GREEN, RED, ORANGE = (_P[k] for k in ("GOLD", "PURPLE", "BLUE", "GREEN", "RED", "ORANGE"))
+BG, CARD, CARD2, TEXT, MUTED, BORDER, ALT = (_P[k] for k in ("BG", "CARD", "CARD2", "TEXT", "MUTED", "BORDER", "ALT"))
+DARK = NAME == "dark"
 
 QSS = f"""
 * {{ font-family: 'Segoe UI', 'Inter', sans-serif; font-size: 10pt; color: {TEXT}; }}
@@ -29,14 +35,20 @@ QLabel#big {{ font-size: 30pt; font-weight: 800; color: {GOLD}; }}
 QPushButton {{ background: {CARD2}; border: 1px solid {BORDER}; border-radius: 6px; padding: 7px 14px; }}
 QPushButton:hover {{ border-color: {GOLD}; }}
 QPushButton#primary {{ background: {GOLD}; color: #111; font-weight: 700; border: none; }}
-QPushButton#primary:hover {{ background: #ffd84a; }}
+QPushButton#primary:hover {{ background: {GOLD}; border: 1px solid {TEXT}; }}
 QPushButton:disabled {{ color: {MUTED}; }}
-QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QPlainTextEdit, QTextEdit, QTextBrowser {{
+QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QDateEdit, QPlainTextEdit, QTextEdit, QTextBrowser {{
     background: {CARD2}; border: 1px solid {BORDER}; border-radius: 6px; padding: 5px 8px;
     selection-background-color: {GOLD}; selection-color: #111; }}
 QComboBox QAbstractItemView {{ background: {CARD2}; border: 1px solid {BORDER}; }}
+QDateEdit:disabled, QSpinBox:disabled {{ color: {MUTED}; }}
+QCalendarWidget QWidget {{ background: {CARD2}; color: {TEXT}; }}
+QCalendarWidget QAbstractItemView:enabled {{ background: {CARD}; color: {TEXT}; selection-background-color: {GOLD};
+                                            selection-color: #111; }}
+QCalendarWidget QToolButton {{ background: transparent; color: {TEXT}; }}
+QTabWidget#subtabs::pane {{ border: none; }}
 QTableView {{ background: {CARD}; border: 1px solid {BORDER}; border-radius: 8px; gridline-color: {BORDER};
-             alternate-background-color: #1c1e25; }}
+             alternate-background-color: {ALT}; }}
 QHeaderView::section {{ background: {CARD}; color: {MUTED}; border: none; border-bottom: 1px solid {BORDER};
                         padding: 6px; font-weight: 600; }}
 QCheckBox::indicator {{ width: 16px; height: 16px; }}

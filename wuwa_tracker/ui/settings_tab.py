@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import os
-import subprocess
-import sys
-
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
-                               QPlainTextEdit, QPushButton, QWidget)
+                               QMessageBox, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget)
+
+from ..core import paths
+from .i18n import tr
 
 from ..core.game_import import SERVER_UTC_OFFSET
 from ..core.gamedata import KINDS
@@ -14,17 +14,18 @@ from .widgets import card
 
 
 class SettingsTab(QWidget):
-    def __init__(self, state, on_saved=None, on_check_update=None):
+    def __init__(self, state, on_saved=None, on_check_update=None, on_automation=None):
         super().__init__()
         self.state = state
         self.on_saved = on_saved or (lambda m: None)
         self.on_check_update = on_check_update
+        self.on_automation = on_automation or (lambda: None)
         lay = QHBoxLayout(self)
         lay.setContentsMargins(20, 16, 20, 16)
         lay.setSpacing(18)
 
         # ---------------- general
-        c1, l1 = card("General")
+        c1, l1 = card(tr("Settings"))
         f = QFormLayout(); f.setSpacing(10)
         self.host = QLineEdit()
         self.model = QComboBox()
@@ -44,11 +45,66 @@ class SettingsTab(QWidget):
         note = QLabel("Server region sets the reset timers and the time zone for direct game import.")
         note.setObjectName("muted"); note.setWordWrap(True)
         l1.addWidget(note)
-        save1 = QPushButton("Save general settings"); save1.setObjectName("primary")
+        save1 = QPushButton(tr("Save general settings")); save1.setObjectName("primary")
         save1.clicked.connect(self.save_general)
         l1.addWidget(save1)
+        l1.addSpacing(14)
+
+        # ---------------- appearance
+        ap = QLabel(tr("Appearance")); ap.setObjectName("h2")
+        l1.addWidget(ap)
+        fa = QFormLayout()
+        self.theme = QComboBox(); self.theme.addItem(tr("Dark"), "dark"); self.theme.addItem(tr("Light"), "light")
+        self.lang = QComboBox(); self.lang.addItem("English", "en"); self.lang.addItem("Nederlands", "nl")
+        fa.addRow(tr("Theme"), self.theme); fa.addRow(tr("Language"), self.lang)
+        l1.addLayout(fa)
+        rn = QLabel(tr("Restart the app to apply.")); rn.setObjectName("muted")
+        l1.addWidget(rn)
+        prefs = paths.ui_prefs()
+        self.theme.setCurrentIndex(max(0, self.theme.findData(prefs.get("theme", "dark"))))
+        self.lang.setCurrentIndex(max(0, self.lang.findData(prefs.get("lang", "en"))))
+        self.theme.currentIndexChanged.connect(lambda: paths.set_ui_pref("theme", self.theme.currentData()))
+        self.lang.currentIndexChanged.connect(lambda: paths.set_ui_pref("lang", self.lang.currentData()))
         l1.addStretch()
         lay.addWidget(c1, 1)
+
+        # ---------------- automation, notifications, data folder
+        c3, l3 = card(tr("Automation"))
+        self.auto_import = QCheckBox("Auto-import: watch the game log and import as soon as you open Convene → History")
+        self.tray = QCheckBox("Show a tray icon (reset timers, quick import)")
+        self.close_tray = QCheckBox("Closing the window keeps the app running in the tray")
+        self.n_codes = QCheckBox("Notify me about new redemption codes")
+        self.n_banners = QCheckBox("Notify me 2 days before a banner or event ends")
+        self.n_imports = QCheckBox("Notify me when pulls were auto-imported")
+        self.upd = QCheckBox("Check GitHub for app updates (once a day)")
+        self.weekly = QCheckBox("Show the weekly summary on the first start of a week")
+        for w in (self.auto_import, self.tray, self.close_tray, self.n_codes, self.n_banners, self.n_imports, self.upd,
+                  self.weekly):
+            l3.addWidget(w)
+        save3 = QPushButton(tr("Save")); save3.setObjectName("primary"); save3.clicked.connect(self.save_automation)
+        l3.addWidget(save3)
+        l3.addSpacing(14)
+        dt = QLabel(tr("Data folder")); dt.setObjectName("h2")
+        l3.addWidget(dt)
+        self.data_dir = QLabel(); self.data_dir.setWordWrap(True)
+        self.data_dir.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        l3.addWidget(self.data_dir)
+        dn = QLabel("Put the data folder in e.g. OneDrive to sync your pulls, settings, notes and backups between "
+                    "PCs. The app warns you when the folder is in use on another PC.")
+        dn.setWordWrap(True); dn.setObjectName("muted")
+        l3.addWidget(dn)
+        drow = QHBoxLayout()
+        b_move = QPushButton("Change…"); b_move.clicked.connect(self.change_data_dir)
+        b_def = QPushButton("Back to default"); b_def.clicked.connect(lambda: self.change_data_dir(default=True))
+        b_open = QPushButton("Open"); b_open.clicked.connect(lambda: self.open_path(self.state.data_dir))
+        b_notes = QPushButton("Open notes folder"); b_notes.setToolTip("Markdown/text notes here are searched by the AI assistant")
+        b_notes.clicked.connect(lambda: self.open_path(self.state.notes_dir))
+        for b in (b_move, b_def, b_open, b_notes):
+            drow.addWidget(b)
+        drow.addStretch()
+        l3.addLayout(drow)
+        l3.addStretch()
+        lay.addWidget(c3, 1)
 
         # ---------------- game data (patch updates)
         c2, l2 = card("Game data · stays up to date every patch")
@@ -99,6 +155,15 @@ class SettingsTab(QWidget):
         self.game_dir.setText(s.get("game_dir"))
         self.region.setCurrentText(s.get("server_region"))
         self.prydwen.setChecked(bool(s.get("prydwen_enabled")))
+        self.auto_import.setChecked(bool(s.get("auto_import")))
+        self.tray.setChecked(bool(s.get("tray")))
+        self.close_tray.setChecked(bool(s.get("close_to_tray")))
+        self.n_codes.setChecked(bool(s.get("notify_codes")))
+        self.n_banners.setChecked(bool(s.get("notify_banners")))
+        self.n_imports.setChecked(bool(s.get("notify_imports")))
+        self.upd.setChecked(bool(s.get("update_check")))
+        self.weekly.setChecked(bool(s.get("weekly_summary")))
+        self.data_dir.setText(f"<b>{s.data_dir}</b>")
         self.url.setText(s.get("gamedata_url"))
         self.autocheck.setChecked(bool(s.get("gamedata_autocheck")))
         self.load_gamedata()
@@ -112,6 +177,35 @@ class SettingsTab(QWidget):
         s.set("prydwen_enabled", self.prydwen.isChecked())
         s.reload()
         self.on_saved("Settings saved.")
+
+    # ---------------- automation / data folder
+    def save_automation(self):
+        s = self.state
+        for key, box in (("auto_import", self.auto_import), ("tray", self.tray), ("close_to_tray", self.close_tray),
+                         ("notify_codes", self.n_codes), ("notify_banners", self.n_banners),
+                         ("notify_imports", self.n_imports), ("update_check", self.upd), ("weekly_summary", self.weekly)):
+            s.set(key, box.isChecked())
+        self.on_automation()
+        self.on_saved("Automation settings saved." + (" Auto-import is watching the game log." if
+                                                      self.auto_import.isChecked() else ""))
+
+    def change_data_dir(self, default=False):
+        if default:
+            target = None
+        else:
+            target = QFileDialog.getExistingDirectory(self, "Choose a data folder (e.g. in OneDrive)", str(self.state.data_dir))
+            if not target:
+                return
+        new = paths.set_data_dir(target)
+        QMessageBox.information(self, tr("Data folder"),
+                                f"The data folder is now:\n{new}\n\nYour data was copied there if the folder was empty. "
+                                "Restart the app to use it.")
+        self.data_dir.setText(f"<b>{self.state.data_dir}</b> → after restart: <b>{new}</b>")
+
+    @staticmethod
+    def open_path(path):
+        from .util import open_path
+        open_path(path)
 
     # ---------------- game data
     def load_gamedata(self):
@@ -161,11 +255,7 @@ class SettingsTab(QWidget):
             self.on_check_update(True)
 
     def open_folder(self):
-        path = str(self.state.gd_store.app_dir)
-        if sys.platform.startswith("win"):
-            os.startfile(path)  # noqa
-        else:
-            subprocess.Popen(["xdg-open", path])
+        self.open_path(self.state.gd_store.app_dir)
 
     def reset_overrides(self):
         p = self.state.gd_store.user_path

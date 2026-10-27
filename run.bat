@@ -10,6 +10,8 @@ if not exist .venv (
 ) else (
     call .venv\Scripts\activate.bat
 )
+REM New dependencies after an update (e.g. openpyxl for the Excel export)
+python -c "import openpyxl" 2>nul || pip install -r requirements.txt
 REM Optional built-in browser for Prydwen guides (about 120 MB, installed once)
 python -c "import PySide6.QtWebEngineWidgets" 2>nul || (
     echo Installing the built-in browser for Prydwen guides - one time, about 120 MB...

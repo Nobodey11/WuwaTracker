@@ -26,6 +26,25 @@ DEFAULTS = {
     "extra_owned": {},            # characters/weapons owned outside of pulls (gifts, free units): name -> copies
     "redeemed_codes": [],         # redemption codes the user ticked as redeemed
     "seen_codes": [],             # codes already shown once (for the "new code" alert)
+    # 0.6 – 1.0
+    "update_check": True,         # look for a newer app version on GitHub (max once a day)
+    "last_update_check": 0.0,
+    "auto_import": False,         # watch the game log and import as soon as Convene → History is opened
+    "tray": True,                 # tray icon with reset timers and quick actions
+    "close_to_tray": False,       # closing the window keeps the app running in the tray
+    "notify_codes": True,
+    "notify_banners": True,
+    "notify_imports": True,
+    "notified": [],               # notification ids already shown (banner-ending alerts)
+    "persona": "analyst",
+    "weekly_summary": True,
+    "last_summary_week": "",
+    "user_events": [],            # [{name, start, end, note}]
+    "income_sources": [],         # planner estimate sources (empty = defaults)
+    "planner": {},                # last planner inputs
+    "wishlist": [],               # [{name, kind, copies}]
+    "sim_achievements": [],
+    "sim_board": [],
 }
 
 # Optional local file next to the app (git-ignored) with extra owned characters, e.g. {"Rebecca": 1}.
@@ -71,6 +90,34 @@ class AppState(QObject):
         if p not in players:
             p = players[0] if players else ""
         return p
+
+    @property
+    def data_dir(self) -> Path:
+        return self.storage.path.parent
+
+    @property
+    def notes_dir(self) -> Path:
+        d = self.data_dir / "notes"
+        d.mkdir(exist_ok=True)
+        return d
+
+    def nickname(self, player: str | None = None) -> str:
+        player = player if player is not None else self.player
+        return self.storage.nicknames().get(player, "")
+
+    def income_entries(self) -> list[dict]:
+        return self.storage.income(self.player)
+
+    def income_rate(self) -> dict:
+        """Logged income (if at least a week of entries), else the estimate from the planner's sources."""
+        from ..core import planner
+        r = planner.income_rate(self.income_entries())
+        if r["days"] >= 7:
+            r["source"] = "logged"
+            return r
+        srcs = self.get("income_sources") or planner.DEFAULT_SOURCES
+        return {"days": 0, "astrite_per_day": float(sum(s["astrite_per_day"] for s in srcs if s.get("on"))),
+                "tides_per_day": 0.0, "forging_per_day": 0.0, "source": "estimate"}
 
     def prydwen_on(self) -> bool:
         return bool(self.get("prydwen_enabled"))

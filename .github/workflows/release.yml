@@ -1,0 +1,43 @@
+name: release
+# Push a tag like v1.0.0 (or run it by hand) to build WuwaTracker.exe on Windows and attach it to a GitHub release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -r requirements.txt -r requirements-web.txt pyinstaller
+      - name: Test
+        run: |
+          pip install pytest
+          python -m pytest -q tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+          WUWA_NO_AUDIO: "1"
+      - name: Build exe
+        run: pyinstaller --noconfirm --windowed --name WuwaTracker --icon wuwa_tracker\assets\icon.ico --collect-submodules wuwa_tracker --add-data "wuwa_tracker\data\game_data.json;wuwa_tracker\data" --add-data "wuwa_tracker\assets;wuwa_tracker\assets" launcher.py
+      - name: Zip
+        shell: pwsh
+        run: |
+          $v = python -c "import wuwa_tracker; print(wuwa_tracker.__version__)"
+          Compress-Archive -Path dist\WuwaTracker\* -DestinationPath "WuwaTracker-$v-windows.zip"
+          python tools/release_notes.py $v > release_notes.md
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: WuwaTracker-*-windows.zip
+          body_path: release_notes.md
+      - uses: actions/upload-artifact@v4
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with:
+          name: WuwaTracker-windows
+          path: WuwaTracker-*-windows.zip

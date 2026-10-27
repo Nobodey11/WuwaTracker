@@ -282,6 +282,19 @@ class PrydwenTab(QWidget):
         if entry and entry.tags:
             tags = QLabel("Tags: " + ", ".join(entry.tags)); tags.setObjectName("muted"); tags.setWordWrap(True)
             L.addWidget(tags)
+        hist = self.state.prydwen.tier_history(c.name)
+        if hist:
+            parts, prev = [], None
+            for d, tier in hist.items():
+                if tier != prev:
+                    parts.append(f"<span style='color:{tier_color(tier)}'><b>{tier}</b></span> "
+                                 f"<span style='color:{T.MUTED}'>{d[5:].replace('-', '/')}</span>")
+                    prev = tier
+            ht = QLabel("Tier history: " + " → ".join(parts[-6:]) if len(parts) > 1 else
+                        f"Tier history: {parts[0]} (unchanged since the app first saw the list)")
+            ht.setTextFormat(Qt.RichText); ht.setWordWrap(True)
+            ht.setToolTip("Saved every time the app loads Prydwen's tier list (one snapshot per change).")
+            L.addWidget(ht)
 
         for r in c.roles:
             h = QLabel(f"{r['role']}  [{r['sequence'] or 'S0'}]"); h.setObjectName("h2"); L.addWidget(h)

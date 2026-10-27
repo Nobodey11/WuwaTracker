@@ -1,141 +1,73 @@
+"""Main window: header + status strip + pages. Import/export actions live in import_flow.py, background
+workers in background.py, the header widgets in header.py and the tray icon in tray.py."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+import time
+from datetime import datetime, timezone
 
-from PySide6.QtCore import QThread, QTimer, Qt, Signal
-from PySide6.QtGui import QAction, QIcon
-from PySide6.QtWidgets import (QComboBox, QFileDialog, QHBoxLayout, QInputDialog, QLabel, QMainWindow, QMenu,
-                               QMessageBox, QPushButton, QTabBar, QTabWidget, QToolButton, QVBoxLayout, QWidget)
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QAction, QDesktopServices
+from PySide6.QtCore import QUrl
+from PySide6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMenu, QMessageBox, QSystemTrayIcon, QTabWidget, \
+    QVBoxLayout, QWidget
 
-from ..core import game_import
+from .. import __version__
+from ..core import game_import, paths
 from . import theme as T
 from .assistant_tab import AssistantTab
+from .background import AppUpdateWorker, GameDataUpdateWorker, LogWatchWorker
 from .calculator_tab import CalculatorTab
+from .calendar_tab import CalendarTab
+from .codes_tab import CodesTab
+from .collection_tab import CollectionTab
+from .header import StatusStrip, TopBar, app_icon, fmt_td, next_resets  # noqa: F401  (re-exported)
 from .history_tab import HistoryTab
+from .i18n import tr
+from .import_flow import ImportActions
 from .new_content_dialog import NewContentDialog
 from .overview_tab import OverviewTab
+from .planner_tab import PlannerTab
 from .prydwen_tab import PrydwenTab
-from .simulator_tab import SimulatorTab
-from .codes_tab import CodesTab
 from .settings_tab import SettingsTab
+from .simulator_tab import SimulatorTab
 
 
-class GameDataUpdateWorker(QThread):
-    done = Signal(bool, str)
-
-    def __init__(self, store, url):
-        super().__init__()
-        self.store, self.url = store, url
-
-    def run(self):
-        self.done.emit(*self.store.check_update(self.url))
-
-
-class GameImportWorker(QThread):
-    """Finds the history link (unless given) and downloads the records, off the UI thread."""
-    log = Signal(str)
-    not_found = Signal(list)                 # log files that were checked
-    done = Signal(object, str)               # GameImportResult | None, error text
-
-    def __init__(self, game_dir, url, offset, existing):
-        super().__init__()
-        self.game_dir, self.url, self.offset, self.existing = game_dir, url, offset, existing
-        self.found_in = None
-
-    def run(self):
-        try:
-            url = self.url
-            if not url:
-                self.log.emit("Looking for the Convene history link in the game logs…")
-                res = game_import.find_gacha_url(self.game_dir)
-                if not res.url:
-                    self.not_found.emit([str(f) for f in res.checked])
-                    return
-                url, self.found_in = res.url, res.source
-                self.log.emit(f"Found the history link in {res.source}")
-            self.log.emit("Downloading your Convene records from the game server…")
-            result = game_import.import_from_game(url, self.offset, self.existing, log=self.log.emit)
-            self.done.emit(result, "")
-        except Exception as e:
-            self.done.emit(None, str(e))
-
-
-def app_icon() -> QIcon:
-    from pathlib import Path
-    base = Path(__file__).resolve().parent.parent / "assets"
-    icon = QIcon()
-    for f in ("icon.ico", "icon.png"):
-        if (base / f).exists():
-            icon.addFile(str(base / f))
-    return icon
-
-
-def next_resets(utc_offset_h: float):
-    tz = timezone(timedelta(hours=utc_offset_h))
-    now = datetime.now(tz)
-    daily = now.replace(hour=4, minute=0, second=0, microsecond=0)
-    if daily <= now:
-        daily += timedelta(days=1)
-    weekly = daily + timedelta(days=(0 - daily.weekday()) % 7)  # Monday 04:00 server time
-    return daily - now, weekly - now
-
-
-def fmt_td(td: timedelta) -> str:
-    s = int(td.total_seconds())
-    d, s = divmod(s, 86400); h, s = divmod(s, 3600); m, s = divmod(s, 60)
-    return (f"{d:02d}d " if d else "") + f"{h:02d}h {m:02d}m" + ("" if d else f" {s:02d}s")
-
-
-class MainWindow(QMainWindow):
+class MainWindow(ImportActions, QMainWindow):
     def __init__(self, state):
         super().__init__()
         self.state = state
+        self._quitting = False
+        self.watcher = None
         self.setWindowTitle("WuWa Pull Tracker")
-        self.resize(1400, 900)
+        self.resize(1440, 900)
 
         root = QWidget(); root.setObjectName("root")
         v = QVBoxLayout(root); v.setContentsMargins(0, 0, 0, 0); v.setSpacing(0)
+        self.top = TopBar()
+        self.strip = StatusStrip()
+        self.nav, self.player, self.menu_btn = self.top.nav, self.top.player, self.top.menu_btn
+        v.addWidget(self.top)
+        v.addWidget(self.strip)
 
-        # ---------- top navigation bar (logo · tabs · player · menu) ----------
-        top = QWidget(); top.setObjectName("topbar")
-        tl = QHBoxLayout(top); tl.setContentsMargins(18, 0, 12, 0); tl.setSpacing(10)
-        icon = QLabel(); icon.setPixmap(app_icon().pixmap(28, 28)); icon.setObjectName("plain")
-        word = QLabel(f"<span style='color:{T.GOLD}'>WuWa</span> Pull Tracker"); word.setObjectName("wordmark")
-        tl.addWidget(icon); tl.addWidget(word); tl.addSpacing(22)
-        self.nav = QTabBar(); self.nav.setObjectName("nav"); self.nav.setDrawBase(False); self.nav.setExpanding(False)
-        tl.addWidget(self.nav, 0, Qt.AlignBottom)
-        tl.addStretch()
-        self.player = QComboBox(); self.player.setObjectName("pill"); self.player.setMinimumWidth(120)
-        self.player.setToolTip("Player (account)")
-        tl.addWidget(self.player)
-        self.menu_btn = QToolButton(); self.menu_btn.setObjectName("menuBtn"); self.menu_btn.setText("☰")
-        self.menu_btn.setToolTip("Menu: import, export, updates, about")
-        self.menu_btn.setPopupMode(QToolButton.InstantPopup)
-        tl.addWidget(self.menu_btn)
-        v.addWidget(top)
-
-        # ---------- thin status strip (game data · reset timers) ----------
-        strip = QWidget(); strip.setObjectName("strip")
-        sl = QHBoxLayout(strip); sl.setContentsMargins(20, 0, 20, 0); sl.setSpacing(18)
-        self.gd_label = QPushButton(); self.gd_label.setObjectName("chip"); self.gd_label.setCursor(Qt.PointingHandCursor)
-        self.gd_label.clicked.connect(self.about_gamedata)
-        sl.addWidget(self.gd_label); sl.addStretch()
-        self.daily = QLabel(); self.daily.setObjectName("stripText")
-        self.weekly = QLabel(); self.weekly.setObjectName("stripText")
-        sl.addWidget(self.daily); sl.addWidget(self.weekly)
-        v.addWidget(strip)
-
+        status = lambda m: self.statusBar().showMessage(m, 8000)
         self.tabs = QTabWidget()
-        self.tabs.addTab(OverviewTab(state), "Tracker")
-        self.tabs.addTab(HistoryTab(state), "Pull History")
-        self.tabs.addTab(CalculatorTab(state), "Probability")
-        self.tabs.addTab(PrydwenTab(state), "Prydwen")
-        self.tabs.addTab(SimulatorTab(state), "Convene Simulator")
         self.codes_tab = CodesTab(state, lambda m: self.statusBar().showMessage(m, 15000))
-        self.tabs.addTab(self.codes_tab, "Codes")
-        self.tabs.addTab(AssistantTab(state), "AI Assistant")
-        self.tabs.addTab(SettingsTab(state, lambda m: self.statusBar().showMessage(m, 8000), self.check_gamedata),
-                         "Settings")
+        self.settings_tab = SettingsTab(state, status, self.check_gamedata, self.apply_automation)
+        pages = [
+            (OverviewTab(state), "Tracker"),
+            (HistoryTab(state), "Pull History"),
+            (CalculatorTab(state), "Probability"),
+            (PlannerTab(state), "Planner"),
+            (CollectionTab(state), "Collection"),
+            (CalendarTab(state), "Calendar"),
+            (PrydwenTab(state), "Prydwen"),
+            (SimulatorTab(state), "Simulator"),
+            (self.codes_tab, "Codes"),
+            (AssistantTab(state), "AI"),
+            (self.settings_tab, "Settings"),
+        ]
+        for w, name in pages:
+            self.tabs.addTab(w, tr(name))
         v.addWidget(self.tabs)
         self.setCentralWidget(root)
         # the nav bar in the header drives the pages; the QTabWidget's own bar is hidden
@@ -144,69 +76,241 @@ class MainWindow(QMainWindow):
         for i in range(self.tabs.count()):
             self.nav.addTab(self.tabs.tabText(i))
         self.nav.currentChanged.connect(self.tabs.setCurrentIndex)
-        self.codes_tab.new_codes.connect(self._codes_badge)
         self.tabs.currentChanged.connect(lambda i: self.nav.currentIndex() != i and self.nav.setCurrentIndex(i))
+        self.codes_tab.new_codes.connect(self._codes_badge)
         self.setWindowIcon(app_icon())
 
+        self.strip.gd_chip.clicked.connect(self.about_gamedata)
+        self.strip.update_chip.clicked.connect(self.open_release)
+        self.strip.watch_chip.clicked.connect(lambda: self.tabs.setCurrentWidget(self.settings_tab))
+        self.strip.ending_chip.clicked.connect(lambda: self.tabs.setCurrentIndex(5))
+
         self._menu()
-        self.player.currentTextChanged.connect(self.change_player)
+        self.player.currentIndexChanged.connect(lambda _: self.change_player(self.player.currentData()))
         state.changed.connect(self.refresh_players)
         state.changed.connect(self.refresh_gd_label)
         self.refresh_players()
         self.refresh_gd_label()
 
+        # tray
+        from .tray import Tray
+        self.tray = Tray(self) if QSystemTrayIcon.isSystemTrayAvailable() else None
+        self.release = None
+
         self.timer = QTimer(self); self.timer.timeout.connect(self.tick); self.timer.start(1000)
+        self.slow = QTimer(self); self.slow.timeout.connect(self.slow_tick); self.slow.start(60_000)
         self.tick()
         if not state.pulls:
             QTimer.singleShot(300, lambda: self.statusBar().showMessage(
-                "No data yet: ☰ menu → Import wuwatracker JSON… (Ctrl+O)."))
+                "No data yet: ☰ menu → Import wuwatracker JSON… (Ctrl+O) or Import from game (Ctrl+G)."))
         if state.get("gamedata_autocheck") and state.get("gamedata_url"):
             QTimer.singleShot(800, lambda: self.check_gamedata(False))
         QTimer.singleShot(1200, lambda: self.ask_new_content(only_if_any=True))
+        QTimer.singleShot(1500, self.apply_automation)
+        QTimer.singleShot(2500, lambda: self.check_app_update(False))
+        QTimer.singleShot(3000, self.slow_tick)
+        QTimer.singleShot(3500, self.maybe_weekly_summary)
+        QTimer.singleShot(400, self._check_lock)
 
+    # ---------------------------------------------------------------- menu
     def _menu(self):
         self.menuBar().hide()
         menu = QMenu(self)
-        def add(text, fn, shortcut=None):
-            a = QAction(text, self); a.triggered.connect(fn)
+
+        def add(text, fn, shortcut=None, parent=menu):
+            a = QAction(tr(text), self); a.triggered.connect(fn)
             if shortcut:
                 a.setShortcut(shortcut)
                 self.addAction(a)          # keep the shortcut working with the menu closed
-            menu.addAction(a)
-        menu.addSection("Data")
+            parent.addAction(a)
+            return a
+        menu.addSection(tr("Data"))
         add("Import wuwatracker JSON…", self.import_json, "Ctrl+O")
-        add("Import from game (experimental)…", self.import_game, "Ctrl+G")
-        add("Export CSV…", self.export_csv)
-        add("Export wuwatracker JSON…", self.export_json)
-        add("Delete this player's data…", self.clear)
-        menu.addSection("Game data")
+        add("Import from game…", self.import_game, "Ctrl+G")
+        exp = menu.addMenu(tr("Export…"))
+        add("Export wuwatracker JSON…", self.export_json, parent=exp)
+        add("Export CSV…", self.export_csv, parent=exp)
+        add("Export Excel…", self.export_xlsx, "Ctrl+E", parent=exp)
+        add("Compare with a wuwatracker export…", self.compare_export)
+        add("Backups…", self.show_backups, "Ctrl+B")
+        menu.addSection(tr("Game data"))
         add("Check for game data updates", lambda: self.check_gamedata(True), "F5")
         add("Classify new content…", lambda: self.ask_new_content(only_if_any=False))
         add("About game data…", self.about_gamedata)
-        menu.addSection("My account")
+        menu.addSection(tr("My account"))
+        add("Rename this account…", self.rename_account)
         add("Owned outside pulls (gifts, free units)…", self.edit_extras)
-        menu.addSection("App")
+        add("Delete this account's data…", self.clear)
+        menu.addSection(tr("App"))
+        add("Weekly summary…", self.weekly_summary, "Ctrl+W")
+        add("Save share image…", self.save_share_image, "Ctrl+Shift+S")
+        add("Check for app updates", lambda: self.check_app_update(True))
         add("About / disclaimer…", self.about)
-        add("Exit", self.close, "Ctrl+Q")
+        add("Exit", self.quit_app, "Ctrl+Q")
         self.menu_btn.setMenu(menu)
 
     def _codes_badge(self, n):
         i = self.tabs.indexOf(self.codes_tab)
-        self.nav.setTabText(i, f"Codes  🎁{n}" if n else "Codes")
+        prev = getattr(self, "_codes_n", None)
+        self.nav.setTabText(i, f"{tr('Codes')}  🎁{n}" if n else tr("Codes"))
+        if prev is not None and n > prev and self.state.get("notify_codes"):
+            self.notify("New redemption code", f"{n} code(s) still to redeem. Open the Codes tab to copy them.")
+        self._codes_n = n
 
     def edit_extras(self):
         from .extras_dialog import ExtrasDialog
         ExtrasDialog(self.state, self).exec()
 
-    # ---------- game data ----------
+    # ---------------------------------------------------------------- notifications / tray
+    def notify(self, title: str, text: str):
+        if self.tray is not None and self.tray.isVisible():
+            self.tray.notify(title, text)
+        else:
+            self.statusBar().showMessage(f"{title}: {text}", 15000)
+
+    def apply_automation(self):
+        """(Re)start the tray icon and the log watcher according to the settings."""
+        if self.tray is not None:
+            self.tray.setVisible(bool(self.state.get("tray")))
+        want = bool(self.state.get("auto_import"))
+        if want and self.watcher is None:
+            self.watcher = LogWatchWorker(self.state.get("game_dir") or None)
+            self.watcher.link_found.connect(self._auto_link)
+            self.watcher.status.connect(lambda s: self.strip.watch_chip.setToolTip(s))
+            self.watcher.start()
+            self.strip.watch_chip.setText("● Auto-import on")
+            self.strip.watch_chip.setToolTip("Open Convene → History in the game and new pulls are imported automatically.")
+            self.strip.watch_chip.show()
+        elif not want and self.watcher is not None:
+            self.watcher.stop(); self.watcher.wait(2000)
+            self.watcher = None
+            self.strip.watch_chip.hide()
+
+    def _auto_link(self, url):
+        self.statusBar().showMessage("New Convene history link found in the game log: importing…", 8000)
+        self.import_game(url=url, auto=True)
+
+    def closeEvent(self, ev):
+        if not self._quitting and self.state.get("close_to_tray") and self.tray is not None and self.tray.isVisible():
+            ev.ignore()
+            self.hide()
+            self.tray.notify("Still running", "WuWa Pull Tracker keeps running in the tray. Right-click the icon to quit.")
+            return
+        self._shutdown()
+        super().closeEvent(ev)
+
+    def quit_app(self):
+        self._quitting = True
+        self.close()
+        QApplication.quit()
+
+    def _shutdown(self):
+        if self.watcher is not None:
+            self.watcher.stop(); self.watcher.wait(2000)
+            self.watcher = None
+        if self.tray is not None:
+            self.tray.hide()
+        paths.release_lock(self.state.data_dir)
+
+    def _check_lock(self):
+        other = paths.acquire_lock(self.state.data_dir)
+        if other:
+            QMessageBox.warning(self, "Data folder in use",
+                                f"The data folder is also in use on {other}.\n\nIf both PCs change the data at the same "
+                                "time (e.g. via OneDrive), one set of changes can be lost. Close the app on the other "
+                                "PC to be safe.")
+            paths.heartbeat(self.state.data_dir)
+
+    # ---------------------------------------------------------------- timers
+    def offset(self) -> float:
+        return game_import.SERVER_UTC_OFFSET.get(self.state.get("server_region"), 8)
+
+    def tick(self):
+        self.strip.set_resets(self.offset())
+        if self.tray is not None and self.tray.isVisible():
+            d, w = next_resets(self.offset())
+            self.tray.set_resets(fmt_td(d), fmt_td(w))
+
+    def slow_tick(self):
+        """Every minute: lock heartbeat and banner-ending alerts."""
+        paths.heartbeat(self.state.data_dir)
+        from ..core import calendar
+        now = datetime.now(timezone.utc)
+        try:
+            entries = calendar.build(self.state.gd.raw, self.state.prydwen.cached_banners() if self.state.prydwen_on()
+                                     else [], self.state.get("user_events"), self.state.get("server_region"),
+                                     self.offset(), now)
+        except Exception:
+            return
+        soon = calendar.ending_soon(entries, now)
+        if soon:
+            first = min(soon, key=lambda e: e.end)
+            self.strip.ending_chip.setText(f"⏳ {first.title} ends in {fmt_td(first.end - now)}"
+                                           + (f"  (+{len(soon) - 1})" if len(soon) > 1 else ""))
+            self.strip.ending_chip.setToolTip("\n".join(f"{e.title}: {e.end.astimezone():%a %d %b %H:%M}" for e in soon))
+            self.strip.ending_chip.show()
+        else:
+            self.strip.ending_chip.hide()
+        if self.state.get("notify_banners"):
+            seen = list(self.state.get("notified") or [])
+            for e in soon:
+                nid = f"{e.kind}|{e.title}|{e.end:%Y-%m-%d}"
+                if nid not in seen:
+                    self.notify(f"{e.title} ends soon", f"{e.kind.capitalize()} ends in {fmt_td(e.end - now)} "
+                                                        f"({e.end.astimezone():%a %d %b %H:%M}).")
+                    seen.append(nid)
+            if seen != (self.state.get("notified") or []):
+                self.state.set("notified", seen[-60:])
+
+    # ---------------------------------------------------------------- updates
+    def check_app_update(self, manual: bool):
+        if not manual:
+            if not self.state.get("update_check") or time.time() - (self.state.get("last_update_check") or 0) < 20 * 3600:
+                return
+        self.state.set("last_update_check", time.time())
+        self.uw = AppUpdateWorker(__version__)
+        self.uw.done.connect(lambda ok, rel: self._on_app_update(ok, rel, manual))
+        self.uw.start()
+
+    def _on_app_update(self, available, rel, manual):
+        if isinstance(rel, str):
+            if manual:
+                QMessageBox.information(self, "App update", rel)
+            return
+        if available:
+            self.release = rel
+            self.strip.update_chip.setText(f"⬆ Update {rel['tag']} available")
+            self.strip.update_chip.setToolTip(rel.get("name", "") + "\nClick to open the release page.")
+            self.strip.update_chip.show()
+            if manual:
+                self.open_release()
+            else:
+                self.notify("Update available", f"WuWa Pull Tracker {rel['tag']} is out.")
+        elif manual:
+            QMessageBox.information(self, "App update", f"You have the latest version ({__version__}).")
+
+    def open_release(self):
+        from ..core.updates import RELEASES
+        url = (self.release or {}).get("url") or RELEASES
+        if self.release and self.release.get("notes"):
+            box = QMessageBox(self); box.setWindowTitle(f"Update {self.release['tag']}")
+            box.setTextFormat(Qt.MarkdownText)
+            box.setText(f"**{self.release['name']}**\n\n{self.release['notes'][:1500]}")
+            b = box.addButton("Open release page", QMessageBox.AcceptRole); box.addButton(QMessageBox.Close)
+            box.exec()
+            if box.clickedButton() is not b:
+                return
+        QDesktopServices.openUrl(QUrl(url))
+
+    # ---------------------------------------------------------------- game data
     def refresh_gd_label(self):
         gd = self.state.gd
         items, pools = self.state.unknown_content()
         stale = not gd.current_banners()
         flag = " ⚠" if (items or pools or stale) else ""
-        self.gd_label.setText(f"Patch {gd.patch}  ·  data v{gd.version}{flag}")
-        self.gd_label.setToolTip("Game data is out of date or has unclassified items — click for details." if flag else
-                                 f"Game data source: {gd.source}")
+        self.strip.gd_chip.setText(f"Patch {gd.patch}  ·  data v{gd.version}{flag}")
+        self.strip.gd_chip.setToolTip("Game data is out of date or has unclassified items — click for details." if flag else
+                                      f"Game data source: {gd.source}")
 
     def check_gamedata(self, manual: bool):
         url = self.state.get("gamedata_url")
@@ -242,18 +346,6 @@ class MainWindow(QMainWindow):
             self.state.reload_gamedata()
             self.statusBar().showMessage("New content saved to your game data.", 8000)
 
-    def about(self):
-        from .. import __version__
-        QMessageBox.about(self, "About WuWa Pull Tracker",
-            f"<h3>WuWa Pull Tracker {__version__}</h3>"
-            "<p>Unofficial fan project, <b>strictly for personal use</b>.</p>"
-            "<p>Based on the <a href='https://wuwatracker.com'>WuWa Tracker</a> pull tracker, but <b>not affiliated "
-            "with, endorsed by or connected to WuWa Tracker, Prydwen.gg or Kuro Games</b>.</p>"
-            "<p>Tier lists, ratings and images in the Prydwen tab belong to "
-            "<a href='https://www.prydwen.gg/wuthering-waves'>Prydwen.gg</a>. Wuthering Waves names and art "
-            "© Kuro Games.</p><p>Odds are estimates; provided as is, without warranty.</p>"
-            "<p><a href='https://github.com/Nobodey11/WuwaTracker'>github.com/Nobodey11/WuwaTracker</a></p>")
-
     def about_gamedata(self):
         gd = self.state.gd
         cur = ", ".join(f"{b['patch']} P{b.get('phase')}" for b in gd.current_banners()) or "none (out of date)"
@@ -263,113 +355,45 @@ class MainWindow(QMainWindow):
                                 f"Banner types: {len(gd.raw['banner_types'])}\n\n"
                                 f"Folder: {self.state.gd_store.app_dir}")
 
-    def tick(self):
-        off = game_import.SERVER_UTC_OFFSET.get(self.state.get("server_region"), 8)
-        d, w = next_resets(off)
-        self.daily.setText(f"Daily reset  <b>{fmt_td(d)}</b>")
-        self.weekly.setText(f"Weekly reset  <b>{fmt_td(w)}</b>")
+    # ---------------------------------------------------------------- misc
+    def about(self):
+        QMessageBox.about(self, "About WuWa Pull Tracker",
+            f"<h3>WuWa Pull Tracker {__version__}</h3>"
+            "<p>Unofficial fan project, <b>strictly for personal use</b>.</p>"
+            "<p>Based on the <a href='https://wuwatracker.com'>WuWa Tracker</a> pull tracker, but <b>not affiliated "
+            "with, endorsed by or connected to WuWa Tracker, Prydwen.gg or Kuro Games</b>.</p>"
+            "<p>Tier lists, ratings, banner info and images from "
+            "<a href='https://www.prydwen.gg/wuthering-waves'>Prydwen.gg</a> belong to Prydwen.gg. Wuthering Waves "
+            "names and art © Kuro Games.</p><p>Odds are estimates; provided as is, without warranty.</p>"
+            "<p><a href='https://github.com/Nobodey11/WuwaTracker'>github.com/Nobodey11/WuwaTracker</a></p>")
 
     def refresh_players(self):
-        players = self.state.storage.players()
-        self.player.blockSignals(True)
-        self.player.clear(); self.player.addItems(players)
-        self.player.setCurrentText(self.state.player)
-        self.player.blockSignals(False)
+        self.top.set_accounts(self.state.storage.players(), self.state.storage.nicknames(), self.state.player)
 
     def change_player(self, p):
         if p and p != self.state.get("player"):
             self.state.set("player", p)
             self.state.reload()
 
-    # ---------- actions ----------
-    def import_json(self):
-        path, _ = QFileDialog.getOpenFileName(self, "wuwatracker export", "", "JSON (*.json)")
-        if not path:
+    def weekly_summary(self):
+        from .dialogs import WeeklySummaryDialog
+        self._summary = WeeklySummaryDialog(self.state, self)
+        self._summary.show()
+
+    def maybe_weekly_summary(self):
+        if not self.state.get("weekly_summary") or not self.state.pulls:
             return
-        try:
-            new, total, player = self.state.storage.import_wuwatracker_json(path)
-        except Exception as e:
-            QMessageBox.critical(self, "Import failed", str(e)); return
-        if player:
-            self.state.set("player", player)
-        self.state.reload()
-        self.statusBar().showMessage(f"Imported {new:,} new pulls ({total:,} in file, duplicates skipped).", 8000)
-        self.ask_new_content(only_if_any=True)
-
-    def import_game(self, url: str | None = None, game_dir: str | None = None):
-        if getattr(self, "gw", None) is not None and self.gw.isRunning():
+        week = datetime.now().strftime("%G-W%V")
+        if self.state.get("last_summary_week") == week:
             return
-        game_dir = game_dir or self.state.get("game_dir") or None
-        off = game_import.SERVER_UTC_OFFSET.get(self.state.get("server_region"), 8)
-        existing = self.state.storage.load(None)
-        self.statusBar().showMessage("Import from game: starting…")
-        self.gw = GameImportWorker(game_dir, url, off, existing)
-        self.gw.log.connect(lambda s: self.statusBar().showMessage(s))
-        self.gw.not_found.connect(self._game_link_not_found)
-        self.gw.done.connect(self.on_game_import)
-        self.gw.start()
+        self.state.set("last_summary_week", week)
+        newest = max(p.time for p in self.state.pulls)
+        if (datetime.now(timezone.utc) - newest).days <= 7:
+            self.weekly_summary()
 
-    def _game_link_not_found(self, checked):
-        self.statusBar().clearMessage()
-        box = QMessageBox(self)
-        box.setWindowTitle("Import from game")
-        box.setIcon(QMessageBox.Information)
-        where = ("Checked these log files, but none contained a history link:\n• " + "\n• ".join(checked[:6])
-                 if checked else "No Wuthering Waves install with log files was found automatically.")
-        box.setText("Couldn't find your Convene history link.")
-        box.setInformativeText("1. Start the game and open Convene → History (let the page load).\n"
-                               "2. Then import again, or pick your game folder / paste the link below.\n\n" + where)
-        pick = box.addButton("Choose game folder…", QMessageBox.ActionRole)
-        paste = box.addButton("Paste link…", QMessageBox.ActionRole)
-        box.addButton(QMessageBox.Cancel)
-        box.exec()
-        if box.clickedButton() is pick:
-            d = QFileDialog.getExistingDirectory(self, "Select your Wuthering Waves folder", self.state.get("game_dir"))
-            if d:
-                self.state.set("game_dir", d)
-                self.import_game(game_dir=d)
-        elif box.clickedButton() is paste:
-            url, ok = QInputDialog.getText(self, "Import from game", "Paste the Convene history link:")
-            if ok and url.strip():
-                self.import_game(url=url.strip())
-
-    def on_game_import(self, result, err):
-        if err:
-            self.statusBar().clearMessage()
-            QMessageBox.warning(self, "Game import failed", err)
-            return
-        src = getattr(self.gw, "found_in", None)
-        if src is not None and not self.state.get("game_dir"):     # remember where the game is
-            parts = list(src.parents)
-            game_root = next((p for p in parts if (p / "Client").is_dir()), None)
-            if game_root:
-                self.state.set("game_dir", str(game_root))
-        new = self.state.storage.add_pulls(result.pulls)
-        if result.player_id:
-            self.state.set("player", result.player_id)
-        self.state.reload()
-        self.statusBar().showMessage(f"Game import done: {new} new pull(s) for player {result.player_id}.", 10000)
-        QMessageBox.information(self, "Import from game",
-                                f"Imported {new} new pull(s) for player {result.player_id}.\n\n"
-                                + "\n".join(l.strip() for l in result.log if l.strip()))
-        self.ask_new_content(only_if_any=True)
-
-    def export_csv(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Export CSV", "wuwa_pulls.csv", "CSV (*.csv)")
+    def save_share_image(self):
+        from .share_card import render
+        path, _ = QFileDialog.getSaveFileName(self, tr("Save share image…").rstrip("…"), "wuwa_pulls.png", "PNG (*.png)")
         if path:
-            self.state.storage.export_csv(path, self.state.player or None)
+            render(self.state).save(path, "PNG")
             self.statusBar().showMessage(f"Saved {path}", 6000)
-
-    def export_json(self):
-        path, _ = QFileDialog.getSaveFileName(self, "Export JSON", "wuwa_pulls.json", "JSON (*.json)")
-        if path:
-            self.state.storage.export_wuwatracker_json(path, self.state.player)
-            self.statusBar().showMessage(f"Saved {path}", 6000)
-
-    def clear(self):
-        p = self.state.player
-        if p and QMessageBox.question(self, "Delete data", f"Delete all stored pulls of player {p}?") \
-                == QMessageBox.Yes:
-            self.state.storage.clear(p)
-            self.state.set("player", "")
-            self.state.reload()

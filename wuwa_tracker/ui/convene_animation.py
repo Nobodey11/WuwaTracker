@@ -278,6 +278,15 @@ class ConveneAnimation(QWidget):
         glow = QRadialGradient(rect.center(), card_h * 0.7)
         glow.setColorAt(0, alpha(col, 0.45)); glow.setColorAt(1, alpha(col, 0))
         p.setBrush(glow); p.drawEllipse(rect.center(), card_h * 0.7, card_h * 0.7)
+        if item.is_weapon and item.rarity >= 4:          # weapons: a slowly turning double diamond frame
+            p.save()
+            p.translate(rect.center())
+            p.rotate(45 + 18 * t)
+            side = card_h * 0.78
+            for k, sc in enumerate((1.0, 0.86)):
+                p.setPen(QPen(alpha(col, 0.55 - 0.2 * k), 2.5 - k)); p.setBrush(Qt.NoBrush)
+                p.drawRect(QRectF(-side * sc / 2, -side * sc / 2, side * sc, side * sc))
+            p.restore()
         if pm is not None and not pm.isNull():
             scaled = pm.scaled(int(card_w), int(card_h), Qt.KeepAspectRatio, Qt.SmoothTransformation)
             p.drawPixmap(int(rect.center().x() - scaled.width() / 2), int(rect.center().y() - scaled.height() / 2), scaled)
@@ -326,6 +335,8 @@ class ConveneAnimation(QWidget):
                 item.result, "FEATURED") + f"   ·   pity {item.pity}"
         elif item.featured:
             tag = "RATE-UP"
+        if item.is_weapon and item.rarity >= 4:
+            tag = ("WEAPON" + ("  ·  " + tag if tag else "")) if item.rarity == 4 else tag.replace("FEATURED", "FEATURED WEAPON")
         if tag:
             p.setPen(alpha(QColor("#ff8a8a") if item.result == "lost" else QColor("#7ef0b0"), ease((t - 1.0) / 0.3)))
             p.drawText(QPointF(tx, h * 0.62 + 100), tag)

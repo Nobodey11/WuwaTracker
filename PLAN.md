@@ -117,9 +117,11 @@ The DP is exact. There's no Monte Carlo noise, and it runs in milliseconds.
 | 6 | Packaging (`build_exe.bat`), icon, installer | ✅ script, run on Windows |
 | 7 | Patch-proof game data layer (data file, auto-detect, online update, `tools/new_patch.py`) | ✅ v0.2 |
 | 8 | Portraits, Prydwen tab, Convene Simulator + animation/sounds, Codes tab, owned-outside-pulls | ✅ v0.3–v0.5 |
-| 9 | Roadmap 0.6 → 1.0 (section 8) | 📋 planned |
+| 9 | Roadmap 0.6 → 1.0 (section 8) | ✅ v1.0.0 (all items) |
 
 ## 8. Roadmap (0.6 → 1.0)
+
+**Status: all items shipped in v1.0.0 (2026-10-27).** See CHANGELOG.md for what each became. Notes: the event calendar has no external source (Prydwen has no event list), so events come from `game_data.json` and your own entries; the Dutch UI covers navigation, menus and the new pages; the credible bands live on Planner → Luck test.
 
 Every idea from the brainstorm of 2026-10-27, grouped into releases. Effort: **S** = a few hours,
 **M** = about a day, **L** = several days. Each release: tests first → build → screenshot check →

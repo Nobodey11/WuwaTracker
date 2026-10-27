@@ -113,10 +113,22 @@ class SimulatorTab(QWidget):
         c2.setFixedWidth(340)
         left.addWidget(c2)
 
-        c3, l3 = card("Session drops")
+        c3, l3 = card()
+        from PySide6.QtWidgets import QTabWidget
+        self.side = QTabWidget(); self.side.setObjectName("subtabs")
         self.log = QListWidget()
         self.log.setStyleSheet(f"QListWidget {{ background:{T.CARD}; border:none; }}")
-        l3.addWidget(self.log)
+        self.ach = QListWidget()
+        self.ach.setStyleSheet(f"QListWidget {{ background:{T.CARD}; border:none; }}")
+        self.board = QListWidget()
+        self.board.setStyleSheet(f"QListWidget {{ background:{T.CARD}; border:none; }}")
+        for lw in (self.ach, self.board):
+            lw.setWordWrap(True)
+        self.side.addTab(self.log, "Drops")
+        self.side.addTab(self.ach, "🏆")
+        self.side.addTab(self.board, "Top 10")
+        self.side.setTabToolTip(1, "Achievements"); self.side.setTabToolTip(2, "Leaderboard: fewest pulls per featured 5✦")
+        l3.addWidget(self.side)
         c3.setFixedWidth(340)
         left.addWidget(c3, 1)
         root.addLayout(left)
@@ -160,6 +172,7 @@ class SimulatorTab(QWidget):
         self.real.toggled.connect(self.new_session)
         state.changed.connect(self._state_changed)
         self.fill_featured()
+        self.fill_achievements()
 
     # ---------------- setup
     def _state_changed(self):
@@ -179,7 +192,49 @@ class SimulatorTab(QWidget):
         self.featured.blockSignals(False)
         self.new_session()
 
+    # ---------------- achievements / leaderboard
+    def fill_achievements(self):
+        from ..core.achievements import ACHIEVEMENTS
+        got = set(self.state.get("sim_achievements") or [])
+        self.ach.clear()
+        for a in ACHIEVEMENTS:
+            it = QListWidgetItem(("🏆 " if a.id in got else "🔒 ") + f"{a.title}: {a.text}")
+            if a.id not in got:
+                it.setForeground(QColor(T.MUTED))
+            self.ach.addItem(it)
+        self.side.setTabText(1, f"🏆 {len(got)}/{len(ACHIEVEMENTS)}")
+        self.board.clear()
+        for i, e in enumerate(self.state.get("sim_board") or [], 1):
+            self.board.addItem(f"{i}. {e['per_featured']} pulls per featured 5✦ · {e['featured']}× in {e['pulls']} "
+                               f"pulls · {e['label']}")
+        if not self.board.count():
+            self.board.addItem("Finish a session (New session) with at least one featured 5✦ to get on the board.")
+
+    def _check_achievements(self, items):
+        from ..core.achievements import BY_ID, check
+        got = list(self.state.get("sim_achievements") or [])
+        new = [a for a in dict.fromkeys(check(items, self.sim)) if a not in got]
+        if new:
+            self.state.set("sim_achievements", got + new)
+            for a in new:
+                self.log.insertItem(0, QListWidgetItem(f"🏆 Achievement: {BY_ID[a].title}"))
+            win = self.window()
+            if hasattr(win, "statusBar"):
+                win.statusBar().showMessage("🏆 " + ", ".join(BY_ID[a].title for a in new), 8000)
+            self.fill_achievements()
+
+    def _record_session(self):
+        from datetime import datetime
+        from ..core.achievements import add_to_board, leaderboard_entry
+        if self.sim is None:
+            return
+        label = f"{self.sim.featured5} · {datetime.now():%d %b %H:%M}"
+        board = add_to_board(list(self.state.get("sim_board") or []), leaderboard_entry(self.sim, label))
+        if board != (self.state.get("sim_board") or []):
+            self.state.set("sim_board", board)
+
     def new_session(self):
+        self._record_session()
         gd, st = self.state.gd, self.state
         weapon = bool(self.kind.currentData())
         name = self.featured.currentText()
@@ -221,6 +276,7 @@ class SimulatorTab(QWidget):
             sl.setVisible(False)
         self.queue = list(zip(self.slots, items))
         self.update_stats()
+        self._check_achievements(items)
         for it in items:
             if it.rarity >= 4:
                 self._log(it)

@@ -2,7 +2,7 @@
   "schema": 1,
   "data_version": "2026.10.26",
   "game_patch": "3.7",
-  "notes": "Bundled game data. Update this file (or publish it at your update URL) every patch. See docs/PATCH_UPDATE.md.",
+  "notes": "Bundled game data. Update this file (or publish it at your update URL) every patch. See docs/PATCH_UPDATE.md. events: [{name, start, end, note}] shows up in the Calendar tab.",
 
   "rates": {
     "base5": 0.008,
@@ -38,6 +38,8 @@
   "limited_5star_weapons": ["Blooming Jadehaven", "Emerald Sentence", "Everbright Polestar", "Forged Dwarf Star",
                             "Freeze Frame", "Kumokiri", "Moongazer's Sigil", "Solsworn Ciphers", "Spectral Trigger",
                             "Spectrum Blaster", "Unspoken Rue"],
+
+  "events": [],
 
   "banners": [
     {"patch": "3.7", "phase": 1, "start": "2026-09-30", "end": "2026-10-22",

@@ -9,6 +9,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install numpy pytest
+      - run: pip install numpy pytest openpyxl
       - run: python tools/new_patch.py check
       - run: python -m pytest -q tests

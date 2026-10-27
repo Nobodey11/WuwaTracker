@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,14 +21,24 @@ CREATE TABLE IF NOT EXISTS pulls (
 );
 CREATE INDEX IF NOT EXISTS idx_pool ON pulls(player_id, pool_type, time, grp);
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS income (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    player_id TEXT    NOT NULL DEFAULT '',
+    day       TEXT    NOT NULL,          -- YYYY-MM-DD
+    astrite   INTEGER NOT NULL DEFAULT 0,
+    tides     INTEGER NOT NULL DEFAULT 0,  -- Radiant Tides (character banner tickets)
+    forging   INTEGER NOT NULL DEFAULT 0,  -- Forging Tides (weapon banner tickets)
+    source    TEXT    NOT NULL DEFAULT '',
+    note      TEXT    NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_income ON income(player_id, day);
+CREATE TABLE IF NOT EXISTS accounts (player_id TEXT PRIMARY KEY, nickname TEXT NOT NULL DEFAULT '');
 """
 
 
 def default_db_path() -> Path:
-    base = os.environ.get("APPDATA") or str(Path.home() / ".config")
-    p = Path(base) / "WuwaTracker"
-    p.mkdir(parents=True, exist_ok=True)
-    return p / "pulls.db"
+    from .paths import data_dir
+    return data_dir() / "pulls.db"
 
 
 def parse_time(s: str) -> datetime:
@@ -95,6 +104,46 @@ class Storage:
             self.con.execute("DELETE FROM pulls")
         self.con.commit()
 
+    # ---------- backups ----------
+    def backup(self, reason: str = "manual") -> Path:
+        from .backup import make_backup
+        return make_backup(self.con, self.path, reason)
+
+    def restore(self, backup_path) -> None:
+        from .backup import restore
+        restore(self.con, backup_path)
+        self.con.executescript(SCHEMA)          # older backups may miss newer tables
+
+    # ---------- accounts ----------
+    def nicknames(self) -> dict[str, str]:
+        return dict(self.con.execute("SELECT player_id, nickname FROM accounts"))
+
+    def set_nickname(self, player_id: str, nickname: str) -> None:
+        self.con.execute("INSERT OR REPLACE INTO accounts VALUES (?, ?)", (player_id, nickname.strip()))
+        self.con.commit()
+
+    # ---------- income (Astrite planner) ----------
+    def add_income(self, day: str, astrite: int = 0, tides: int = 0, forging: int = 0, source: str = "",
+                   note: str = "", player_id: str = "") -> int:
+        cur = self.con.execute("INSERT INTO income (player_id, day, astrite, tides, forging, source, note) "
+                               "VALUES (?,?,?,?,?,?,?)", (player_id, day, int(astrite), int(tides), int(forging),
+                                                          source, note))
+        self.con.commit()
+        return cur.lastrowid
+
+    def income(self, player_id: str | None = None) -> list[dict]:
+        q = "SELECT id, player_id, day, astrite, tides, forging, source, note FROM income"
+        args: tuple = ()
+        if player_id is not None:
+            q += " WHERE player_id IN (?, '')"
+            args = (player_id,)
+        cols = ("id", "player_id", "day", "astrite", "tides", "forging", "source", "note")
+        return [dict(zip(cols, r)) for r in self.con.execute(q + " ORDER BY day, id", args)]
+
+    def delete_income(self, row_id: int) -> None:
+        self.con.execute("DELETE FROM income WHERE id=?", (row_id,))
+        self.con.commit()
+
     # ---------- import / export ----------
     def import_wuwatracker_json(self, path: str | Path) -> tuple[int, int, str]:
         """Returns (new_rows, total_in_file, player_id)."""
@@ -122,6 +171,51 @@ class Storage:
             w.writerow(["player_id", "pool_type", "resource_id", "quality", "name", "time_utc", "group"])
             for p in self.load(player_id):
                 w.writerow([p.player_id, p.pool_type, p.resource_id, p.quality, p.name, p.time.isoformat(), p.group])
+
+
+    def export_xlsx(self, path: str | Path, player_id: str | None = None, gd=None) -> None:
+        """Excel workbook: all pulls (with pity) + one summary sheet per banner. Needs openpyxl."""
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill
+        from .analysis import all_stats, pity_with_rows
+        pulls = self.load(player_id)
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Pulls"
+        ws.append(["Player", "Banner type", "Rarity", "Name", "Time (UTC)", "Group", "5★ pity", "Resource id"])
+        gold, purple = PatternFill("solid", fgColor="F5C518"), PatternFill("solid", fgColor="B48CFF")
+        for p, pity in pity_with_rows(pulls):
+            ws.append([p.player_id, p.pool_type, p.quality, p.name, p.time.replace(tzinfo=None), p.group, pity,
+                       p.resource_id])
+            if p.quality >= 4:
+                ws.cell(ws.max_row, 3).fill = gold if p.quality == 5 else purple
+        for c in ws[1]:
+            c.font = Font(bold=True)
+        ws.freeze_panes = "A2"
+        ws.auto_filter.ref = ws.dimensions
+        for col, w in zip("ABCDEFGH", (12, 12, 8, 28, 20, 7, 9, 12)):
+            ws.column_dimensions[col].width = w
+        s = wb.create_sheet("Banners")
+        s.append(["Banner", "Type", "Pulls", "Astrite", "5★ pity now", "4★ pity now", "5★", "4★", "Avg 5★ pity",
+                  "50/50 won", "50/50 lost", "Guaranteed"])
+        for st in all_stats(pulls, gd).values():
+            s.append([st.name, st.pool_type, st.total_pulls, st.astrite, st.pity5, st.pity4, st.count5, st.count4,
+                      round(st.avg_pity5, 2) if st.avg_pity5 else None, st.wins, st.losses,
+                      "yes" if st.guaranteed else ("no" if st.has_5050 else "")])
+        for c in s[1]:
+            c.font = Font(bold=True)
+        s.column_dimensions["A"].width = 28
+        f = wb.create_sheet("5★ history")
+        f.append(["Banner", "Name", "Pity", "Date (UTC)", "Result"])
+        for st in all_stats(pulls, gd).values():
+            for e in st.five_stars:
+                f.append([st.name, e.name, e.pity, e.time.replace(tzinfo=None), e.result])
+        for c in f[1]:
+            c.font = Font(bold=True)
+        f.column_dimensions["A"].width = 28
+        f.column_dimensions["B"].width = 26
+        f.column_dimensions["D"].width = 20
+        wb.save(path)
 
 
 def read_wuwatracker_json(path: str | Path) -> tuple[list[Pull], str]:

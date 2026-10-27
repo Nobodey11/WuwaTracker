@@ -1,5 +1,69 @@
 # Changelog
 
+## 1.0.0 (2026-10-27): the whole roadmap (0.6 → 1.0)
+Everything from the 0.6–1.0 roadmap in PLAN.md, shipped together.
+
+**Reliability (0.6)**
+- **Automatic backups** of your database before every import, restore and delete (last 20 kept); ☰ → Backups (Ctrl+B)
+  to make one or restore one (a restore is itself undoable).
+- **Export** to wuwatracker JSON (round-trips exactly), CSV and **Excel** (pulls with pity, banner summary, 5★ history;
+  Ctrl+E). run.bat installs the new `openpyxl` dependency automatically.
+- **Import checks**: after a game import the app warns when the new records don't connect to your stored history (a
+  possible gap) or a 10-pull is incomplete. ☰ → Compare with a wuwatracker export shows per banner what's missing.
+- **Update check** against GitHub Releases (once a day, can be turned off); a chip in the header links to the release.
+- **Prydwen layout check**: a weekly GitHub Actions job (`tools/prydwen_check.py`) tests every parser against the live
+  pages, so a Prydwen redesign is noticed before the app breaks.
+
+**Automatic (0.7)**
+- **Auto-import**: the app watches the game log and imports new pulls a few seconds after you open Convene → History
+  (only the new part of the log is read; turn it on in Settings → Automation).
+- **Tray icon** with daily/weekly reset countdowns and quick import; optionally keep running in the tray when closed.
+- **Notifications** for new redemption codes, banners/events ending within 2 days (also a ⏳ chip in the header) and
+  auto-imported pulls (with the 5★ names).
+- **Accounts**: give each player id a name (☰ → Rename this account); the account pill shows it.
+- **Data folder** can live anywhere (e.g. OneDrive) to sync between PCs, with a lock that warns when another PC is using it.
+
+**Planning & statistics (0.8): new Planner tab**
+- **Astrite planner**: Astrite + Tides now, income per day and a target date (or jump to a banner date) → pulls on that
+  date, chance of the featured 5★ from your real pity/guarantee, the date you reach 90 %, and a chance-by-date chart.
+- **Wishlist / "should I pull?"**: several wishes in priority order (e.g. Lynae S1 + her weapon) with one budget; exact
+  chance per wish and for everything, and which wish to drop. Radiant Tides only pay for characters, Forging Tides only
+  for weapons. Verified against a Monte Carlo simulation in the tests.
+- **Income log** (quick +60 / +90 / +300 buttons, monthly chart); after 7 logged days the planner uses your real income,
+  before that an editable estimate.
+- **What if**: replay your 50/50s with any outcome changed (or all won / all lost / coin flips), and compare your pulls
+  with an average player's for the same copies.
+- **Luck test**: KS and chi-square tests of your pity distribution against the model (simulated p-values) with a plain
+  verdict, plus a **Bayesian fit** of the soft-pity curve with a 90 % credible band and intervals for the 5★ rate and
+  P(featured in 80 pulls).
+
+**Collection & calendar (0.9)**
+- **Collection tab**: every resonator and weapon (Prydwen lists), owned in colour with S0–S6 / R1–R5, filters by
+  rarity, element/weapon type, owned and limited.
+- **Calendar tab**: current and upcoming banners from Prydwen's banner page (exact times for your server region),
+  game-data banners and events, your own events, and daily/weekly/monthly resets, with live countdowns.
+- **Rerun tracker**: every known run of each limited 5★ (game data, Prydwen, remembered over time, and your own pulls),
+  sorted by the longest wait.
+- **Tier history**: the tier list is snapshotted whenever it changes; the character panel shows each character's
+  rating over time.
+
+**Polish (1.0)**
+- **Weekly summary** on the first start of a week (☰ → Weekly summary, Ctrl+W); optional "Let the AI tell it" that only
+  rephrases the app's facts.
+- **AI assistant**: new tools `plan_astrite`, `wishlist_odds` and `search_notes` (local search over your own notes,
+  cached Prydwen guides and the banner calendar); **personas** (analyst, hype friend, saving coach);
+  **Benchmark models…** scores your Ollama models on questions about your own data (also `tools/benchmark.py`).
+- **Light theme** and a **Dutch** interface option (Settings → Appearance; navigation, menus and the new pages are
+  translated, older pages still partly English).
+- **Share image** (☰ → Save share image…): a 1200×675 PNG with your banner stats and latest 5★ portraits.
+- **Simulator**: 11 achievements, a top-10 leaderboard (fewest pulls per featured 5★) and a weapon-style reveal frame.
+- **Ready-made .exe**: pushing a `v*` tag builds `WuwaTracker-<version>-windows.zip` on GitHub Actions and attaches it
+  to the release, so no Python is needed.
+- Refactor: the main window is split into `header.py`, `import_flow.py`, `background.py`, `tray.py` and `dialogs.py`.
+- Tests: 60 (new: backups, exports, import checks, log watcher, planner, wishlist vs. Monte Carlo, what-if, luck tests,
+  Prydwen banners/weapons, calendar, reruns, collection, summary, RAG, benchmark scoring, achievements, data folder,
+  and a headless test that opens every tab).
+
 ## 0.5.1 (2026-10-27): import from game fixed
 - **Scrambled Client.log**: newer game versions XOR-encode the log, so the history link was never found. The log is
   now decoded first (the raw text and the KRSDK debug.log are still tried too).

@@ -4,8 +4,8 @@
 
 - **Based on WuWa Tracker:** the app is inspired by and modelled on the [WuWa Tracker](https://wuwatracker.com) pull
   tracker and can import its JSON export. It is **not affiliated with, endorsed by or connected to WuWa Tracker**.
-- **Not affiliated with Prydwen.gg:** the Prydwen tab only displays Prydwen.gg's public tier list, ratings and images
-  for personal viewing. It caches them locally, credits Prydwen and links back to the full guides. All of that content
+- **Not affiliated with Prydwen.gg:** the app only displays Prydwen.gg's public tier list, ratings, banner schedule,
+  redemption codes, character/weapon lists and images for personal viewing. It caches them locally, credits Prydwen and links back to the full guides. All of that content
   belongs to Prydwen.gg. The project is **not affiliated with, endorsed by or connected to Prydwen.gg**.
 - **Not affiliated with Kuro Games:** Wuthering Waves and all related names, characters, images and trademarks are
   the property of Kuro Games. This project is not affiliated with or endorsed by Kuro Games.

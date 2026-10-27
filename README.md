@@ -10,10 +10,14 @@
 
 A desktop pull tracker based on the [WuWa Tracker](https://wuwatracker.com) pull tracker, with an exact probability calculator and a local AI assistant.
 
-> **Disclaimer:** This is an unofficial, fan-made project **for personal use only**. It is inspired by and based on the [WuWa Tracker](https://wuwatracker.com) pull tracker (it reads its export format), but it is **not affiliated with, endorsed by or connected to WuWa Tracker (wuwatracker.com), Prydwen.gg, or Kuro Games**. Wuthering Waves and all related names, characters and art are trademarks and © of Kuro Games. Tier lists, ratings and images shown in the Prydwen tab belong to Prydwen.gg and are only loaded for personal viewing, with links back to their site. See [DISCLAIMER.md](DISCLAIMER.md).
+> **Disclaimer:** This is an unofficial, fan-made project **for personal use only**. It is inspired by and based on the [WuWa Tracker](https://wuwatracker.com) pull tracker (it reads its export format), but it is **not affiliated with, endorsed by or connected to WuWa Tracker (wuwatracker.com), Prydwen.gg, or Kuro Games**. Wuthering Waves and all related names, characters and art are trademarks and © of Kuro Games. Tier lists, ratings, banner info and images shown in the app belong to Prydwen.gg and are only loaded for personal viewing, with links back to their site. See [DISCLAIMER.md](DISCLAIMER.md).
 
 ## Quick start (Windows)
 
+**Easiest:** download `WuwaTracker-<version>-windows.zip` from [Releases](https://github.com/Nobodey11/WuwaTracker/releases),
+unzip it and run `WuwaTracker.exe` (no Python needed).
+
+**From source:**
 1. Install **Python 3.11+** from python.org (tick *Add python.exe to PATH*).
 2. Download the code (**Code → Download ZIP**, or `git clone https://github.com/Nobodey11/WuwaTracker`) and double-click **`run.bat`**. The first start creates `.venv` and installs the dependencies, which takes about a minute.
 3. **☰ menu → Import wuwatracker JSON…** (Ctrl+O) and pick your export (wuwatracker.com → Settings → Export).
@@ -30,11 +34,11 @@ Your data is stored in `%APPDATA%\WuwaTracker\pulls.db` (SQLite, so you can quer
 ### Optional: build a standalone .exe
 Double-click `build_exe.bat` to get `dist\WuwaTracker\WuwaTracker.exe`.
 
-### Experimental: import straight from the game
-In-game, open **Convene → History** once. Then set your game folder in **Settings** and use **☰ menu → Import from game**.
-The app reads the history link from the game log and downloads your records, like wuwatracker's import script.
-Set **Server region** correctly (the reset timers in your wuwatracker screenshot point to **Asia, UTC+8**),
-because the game API returns server-local times.
+### Import straight from the game
+In-game, open **Convene → History**, then use **☰ menu → Import from game** (Ctrl+G). The app finds the game (also in
+other Steam libraries), reads the history link from the game log and downloads your records, like wuwatracker's import
+script. With **Settings → Automation → Auto-import** on, this happens by itself a few seconds after you open the history.
+A backup is made before every import.
 
 ## Prydwen.gg
 The **Prydwen** tab and the portraits use [Prydwen.gg](https://www.prydwen.gg/wuthering-waves)'s public pages. They are
@@ -55,14 +59,20 @@ All patch-specific data (banners, new characters, standard pool, banner types, p
 
 | Tab | What it does |
 |-----|--------------|
-| Tracker | Banner cards with 5✦/4✦ pity, totals, Astrite, average featured pity, 50/50 record, luck vs. model, 5✦ list and pity chart |
+| Tracker | Banner cards with 5✦/4✦ pity, totals, Astrite, average featured pity, 50/50 record, luck vs. model, next-pull odds, 5✦ list and pity chart |
 | Pull History | Searchable, sortable table with portraits, rarity/banner filters and patch column |
 | Probability | Chance of N featured copies within X pulls (or Astrite + Tides) from your current pity/guarantee, plus expected pulls, 50/90/100 % thresholds and charts |
-| Prydwen | Prydwen.gg tier list with portraits and owned badges, a character panel (ratings, best weapons, echo sets), and Prydwen's own website in a built-in browser for the full guides |
-| Convene Simulator | Mini-game: free x1/x10 pulls on the current banners with the real pity/50-50 rules and an animated reveal |
+| Planner | Astrite planner (chance on a date, from your income), wishlist ("should I pull?"), income log, what-if replays of your 50/50s, and a statistical luck test with a Bayesian soft-pity fit |
+| Collection | Every resonator and weapon; owned ones in colour with S0–S6 / R1–R5 |
+| Calendar | Banners (Prydwen), events, your own events and resets with countdowns, plus a rerun tracker |
+| Prydwen | Prydwen.gg tier list with portraits, owned badges and tier history, a character panel, and Prydwen's own website in a built-in browser |
+| Simulator | Mini-game: free x1/x10 pulls with the real pity/50-50 rules, animated reveal, achievements and a leaderboard |
 | Codes | Active redemption codes (from Prydwen.gg) with rewards, copy button and a redeemed tick-off |
-| AI Assistant | Chat with a local Ollama model that calls the app's tools (`get_overview`, `featured_probability`, `pulls_needed`, …) |
-| Settings | Ollama host, pity model, game folder, server region, standard 5✦ list, banner names |
+| AI | Chat with a local Ollama model that calls the app's tools (odds, planner, wishlist, notes search…), personas, weekly summary and a model benchmark |
+| Settings | Ollama, pity model, game folder, server region, theme and language, automation and notifications, data folder (e.g. OneDrive), game data |
+
+Also in the ☰ menu: exports (wuwatracker JSON, CSV, Excel), compare with an export, backups, account names, weekly
+summary, a shareable stats image and the update check.
 
 ## The probability model
 Kuro publishes 0.8 % base, soft pity from ~66, and hard pity at 80, but **not** the curve in between. Choose between:
@@ -77,9 +87,13 @@ All odds are computed exactly with dynamic programming over (pity, guarantee, co
 pip install -r requirements.txt pytest
 python -m pytest tests          # set WUWA_SAMPLE=path\to\export.json to also check the numbers against wuwatracker
 python -m wuwa_tracker.app --import path\to\export.json
+python tools\prydwen_check.py   # do the Prydwen parsers still match the live site?
+python tools\benchmark.py       # score your Ollama models on your own data
 ```
+**Releases:** bump `wuwa_tracker/__init__.py`, add a CHANGELOG section, then `git tag v1.2.3 && git push --tags`.
+GitHub Actions builds the .exe and publishes the release with the changelog text.
 See `PLAN.md` for the architecture and the improvement backlog.
 
 ## Disclaimer
-This is an unofficial, fan-made project **for personal use only**. It is inspired by and based on the [WuWa Tracker](https://wuwatracker.com) pull tracker (it reads its export format), but it is **not affiliated with, endorsed by or connected to WuWa Tracker (wuwatracker.com), Prydwen.gg, or Kuro Games**. Wuthering Waves and all related names, characters and art are trademarks and © of Kuro Games. Tier lists, ratings and images shown in the Prydwen tab belong to Prydwen.gg and are only loaded for personal viewing, with links back to their site.
+This is an unofficial, fan-made project **for personal use only**. It is inspired by and based on the [WuWa Tracker](https://wuwatracker.com) pull tracker (it reads its export format), but it is **not affiliated with, endorsed by or connected to WuWa Tracker (wuwatracker.com), Prydwen.gg, or Kuro Games**. Wuthering Waves and all related names, characters and art are trademarks and © of Kuro Games. Tier lists, ratings, banner info and images shown in the app belong to Prydwen.gg and are only loaded for personal viewing, with links back to their site.
 No warranty: odds are estimates (the soft-pity curve is not officially published). Use at your own risk.

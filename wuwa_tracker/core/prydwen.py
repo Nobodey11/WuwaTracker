@@ -22,12 +22,16 @@ TIER_URL = BASE + "/wuthering-waves/tier-list"
 CHARS_URL = BASE + "/wuthering-waves/characters"
 CHAR_URL = BASE + "/wuthering-waves/characters/{slug}"
 CODES_URL = BASE + "/wuthering-waves/codes"
+BANNERS_URL = BASE + "/wuthering-waves/banners"
+WEAPONS_URL = BASE + "/wuthering-waves/weapons"
 WEAPON_ICON = "https://cdn.prydwen.gg/images/wuthering-waves/weapons/{rid}.webp"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) WuwaTracker/0.3 (+https://github.com/Nobodey11/WuwaTracker)"
 
 TTL_TIER = 12 * 3600          # tier list: refresh at most twice a day
 TTL_CHAR = 3 * 24 * 3600      # character pages: every 3 days
 TTL_CODES = 3 * 3600          # redemption codes: every 3 hours
+TTL_BANNERS = 6 * 3600        # banner schedule: every 6 hours
+TTL_WEAPONS = 7 * 24 * 3600   # weapon list: weekly
 ROLE_LABEL = {"dps": "DPS", "debuffer": "Hybrid", "support": "Support"}
 WEAPON_ID_MIN = 100000
 
@@ -356,6 +360,96 @@ def parse_character(html: str, slug: str) -> CharacterInfo:
     return info
 
 
+def parse_banners(html: str) -> list[dict]:
+    """Banners page -> [{name, slug, category (character/weapon), section (current/upcoming), rerun, rarity,
+    patch, phase, weapon_type, element, start/end per region (ISO, UTC) or "", featured, secondary, art}]"""
+    root = parse_html(html)
+    out = []
+    for card in root.find_all("article", "banner-card"):
+        name_el = card.find("p", "banner-name")
+        if not name_el:
+            continue
+        timer = card.find("div", "art-timer")
+        ta = timer.attrs if timer else {}
+        times = {}
+        for region in ("na", "eu", "asia"):
+            times[region] = (ta.get(f"data-start-{region}", "") or "", ta.get(f"data-end-{region}", "") or "")
+        meta = card.find("div", "banner-phase-meta")
+        label = meta.find("span").clean_text() if meta and meta.find("span") else ""
+        m = re.search(r"(\d+\.\d+)(?:\s*Phase\s*(\d+))?", label)
+        chips = card.find_all("span", "icon-chip")
+        wtype = next((c.clean_text() for c in chips if c.has_class("weapon")), "")
+        elem = next((c.clean_text() for c in chips if c.has_class("element")), "")
+        groups = {}
+        for g in card.find_all("div", "featured-rate-ups"):
+            lab = g.find("span", "featured-rate-ups-label")
+            groups[lab.clean_text() if lab else ""] = [a.clean_text() for a in g.find_all("a", "featured-rate-up")]
+        link = card.find("a", "banner-card-link")
+        href = link.attrs.get("href", "") if link else ""
+        imgs = [i for i in card.find_all("img") if i.attrs.get("alt")]
+        rar = card.find("span", "rarity")
+        btype = card.find("span", "banner-type")
+        section = card.attrs.get("data-section", "")
+        out.append({
+            "name": name_el.clean_text(),
+            "slug": href.rstrip("/").rsplit("/", 1)[-1] if "/characters/" in href else "",
+            "category": card.attrs.get("data-category", "weapon" if card.has_class("weapon-banner-card") else "character"),
+            "section": "current" if section == "current" else "upcoming",
+            "rerun": bool(btype and btype.clean_text().lower() == "rerun"),
+            "rarity": int(re.match(r"\d", rar.clean_text()).group()) if rar and re.match(r"\d", rar.clean_text()) else 5,
+            "patch": m.group(1) if m else "", "phase": int(m.group(2)) if m and m.group(2) else None,
+            "weapon_type": wtype, "element": elem,
+            "times": times,
+            "featured": groups.get("Featured Rate Up", []),
+            "secondary": groups.get("Secondary Rate Up", []),
+            "art": imgs[0].attrs.get("src", "") if imgs else "",
+        })
+    if not out:
+        raise ValueError("No banners found on the page (Prydwen layout changed?)")
+    return out
+
+
+def banner_times(b: dict, region: str = "asia") -> tuple[str, str]:
+    """(start, end) ISO strings for a server region, falling back to any region that has them."""
+    t = b.get("times", {})
+    for r in (region, "asia", "eu", "na"):
+        s, e = t.get(r, ("", ""))
+        if s or e:
+            return s, e
+    return "", ""
+
+
+def parse_weapon_list(html: str) -> dict[str, dict]:
+    """Weapons page -> {key(name): {name, rarity, type, icon, resource_id}}."""
+    root = parse_html(html)
+    out = {}
+    for box in root.find_all("div", "ww-weapon-box"):
+        h4 = box.find("h4")
+        img = box.find("img")
+        if not h4:
+            continue
+        name = h4.clean_text()
+        rar = 0
+        img_box = box.find("div", "ww-image")
+        if img_box:
+            for c in img_box.classes:
+                mm = re.match(r"rar-(\d)", c)
+                if mm:
+                    rar = int(mm.group(1))
+        wtype = ""
+        for para in box.find_all("p"):
+            txt = para.clean_text()
+            if txt.startswith("Type:"):
+                wtype = txt.split(":", 1)[1].strip()
+        icon = img.attrs.get("src", "") if img else ""
+        rid = re.search(r"/weapons/(\d+)\.", icon)
+        out[key(name)] = {"name": name, "rarity": rar, "type": wtype, "icon": icon,
+                          "resource_id": int(rid.group(1)) if rid else 0}
+    if not out:
+        raise ValueError("Weapon list is empty (Prydwen layout changed?)")
+    return out
+
+
 # ---------------------------------------------------------------- client with cache
 class Prydwen:
     def __init__(self, cache_dir: Path, timeout: float = 20):
@@ -389,8 +483,13 @@ class Prydwen:
         def fetch():
             return asdict(parse_tier_list(self._get(TIER_URL).decode("utf-8", "replace")))
         data, _ = self._cached_json("tierlist", TTL_TIER, fetch, force)
-        return TierList(tiers=data["tiers"], entries=[TierEntry(**e) for e in data["entries"]],
-                        fetched=data.get("fetched", 0), mode=data.get("mode", "Tower of Adversity"))
+        tl = TierList(tiers=data["tiers"], entries=[TierEntry(**e) for e in data["entries"]],
+                      fetched=data.get("fetched", 0), mode=data.get("mode", "Tower of Adversity"))
+        try:
+            self._record_tier_snapshot(tl)
+        except (OSError, ValueError):
+            pass
+        return tl
 
     def character(self, slug: str, force: bool = False) -> CharacterInfo:
         slug = re.sub(r"[^a-z0-9-]", "", slug.lower())
@@ -414,6 +513,77 @@ class Prydwen:
         data, _ = self._cached_json("codes", TTL_CODES, fetch, force)
         return data
 
+    def banners(self, force: bool = False) -> list[dict]:
+        def fetch():
+            return {"fetched": time.time(),
+                    "banners": parse_banners(self._get(BANNERS_URL).decode("utf-8", "replace"))}
+        data, _ = self._cached_json("banners", TTL_BANNERS, fetch, force)
+        self._record_banner_history(data["banners"])
+        return data["banners"]
+
+    def cached_banners(self) -> list[dict]:
+        path = self.dir / "banners.json"
+        return json.loads(path.read_text(encoding="utf-8")).get("banners", []) if path.exists() else []
+
+    def weapon_list(self, force: bool = False) -> dict[str, dict]:
+        def fetch():
+            return {"fetched": time.time(),
+                    "weapons": parse_weapon_list(self._get(WEAPONS_URL).decode("utf-8", "replace"))}
+        data, _ = self._cached_json("weapons", TTL_WEAPONS, fetch, force)
+        return data["weapons"]
+
+    def cached_weapon_list(self) -> dict[str, dict]:
+        path = self.dir / "weapons.json"
+        return json.loads(path.read_text(encoding="utf-8")).get("weapons", {}) if path.exists() else {}
+
+    # --- history kept locally (Prydwen only shows the present)
+    def _record_banner_history(self, banners: list[dict]) -> None:
+        """Every banner ever seen on Prydwen's page, kept in banner_history.json (for the rerun tracker)."""
+        path = self.dir / "banner_history.json"
+        hist = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+        changed = False
+        for b in banners:
+            s, e = banner_times(b)
+            if not s:
+                continue
+            k = f"{b['category']}|{b['name']}|{s[:10]}"
+            if k not in hist:
+                hist[k] = {"name": b["name"], "category": b["category"], "patch": b["patch"], "phase": b["phase"],
+                           "start": s[:10], "end": e[:10], "rerun": b["rerun"], "featured": b["featured"]}
+                changed = True
+        if changed:
+            path.write_text(json.dumps(hist, indent=1, ensure_ascii=False), encoding="utf-8")
+
+    def banner_history(self) -> list[dict]:
+        path = self.dir / "banner_history.json"
+        return list(json.loads(path.read_text(encoding="utf-8")).values()) if path.exists() else []
+
+    def _record_tier_snapshot(self, tl: "TierList") -> None:
+        """One snapshot per day when the tier list changed: {date: {name: tier}}."""
+        path = self.dir / "tier_history.json"
+        hist = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+        snap = {}
+        for e in tl.entries:
+            snap.setdefault(e.name, e.tier)
+        if hist and hist[max(hist)] == snap:
+            return
+        hist[time.strftime("%Y-%m-%d", time.localtime(tl.fetched or time.time()))] = snap
+        path.write_text(json.dumps(hist, ensure_ascii=False), encoding="utf-8")
+
+    def tier_history(self, name: str | None = None) -> dict:
+        """{date: {name: tier}}, or for one character {date: tier} (only dates where it was listed)."""
+        path = self.dir / "tier_history.json"
+        hist = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+        if name is None:
+            return hist
+        k = key(name)
+        out = {}
+        for d in sorted(hist):
+            for n, tier in hist[d].items():
+                if key(n) == k:
+                    out[d] = tier
+        return out
+
     def cached_character_list(self) -> dict[str, dict]:
         path = self.dir / "characters.json"
         if not path.exists():
@@ -436,6 +606,14 @@ class Prydwen:
         data = json.loads(path.read_text(encoding="utf-8"))
         return TierList(tiers=data["tiers"], entries=[TierEntry(**e) for e in data["entries"]],
                         fetched=data.get("fetched", 0))
+
+    def image_path(self, url: str) -> Path | None:
+        """Local path of an image if it is already cached (never downloads)."""
+        if not url:
+            return None
+        ext = Path(url.split("?")[0]).suffix or ".img"
+        path = self.dir / "img" / (hashlib.sha1(url.encode()).hexdigest()[:16] + ext)
+        return path if path.exists() and path.stat().st_size > 0 else None
 
     def image(self, url: str) -> Path | None:
         """Download (once) and return the local path of an image."""
@@ -463,6 +641,9 @@ class Prydwen:
         """Icon URL for a pulled item: weapons by resourceId, characters via the tier list."""
         if resource_id and resource_id >= WEAPON_ID_MIN:
             return WEAPON_ICON.format(rid=resource_id)
+        w = self.cached_weapon_list().get(key(name)) if not resource_id else None
+        if w and w.get("icon"):
+            return w["icon"]
         tl = self.cached_tier_list()
         if tl:
             e = tl.by_key().get(key(name))

@@ -74,6 +74,13 @@ def validate(raw: dict) -> list[str]:
             err.append(f"banners[{i}] needs start/end as YYYY-MM-DD")
         if not b.get("patch"):
             err.append(f"banners[{i}].patch missing")
+    for i, ev in enumerate(raw.get("events", [])):
+        if not ev.get("name"):
+            err.append(f"events[{i}].name missing")
+        try:
+            date.fromisoformat(str(ev["start"])[:10]); date.fromisoformat(str(ev["end"])[:10])
+        except Exception:
+            err.append(f"events[{i}] needs start/end as YYYY-MM-DD")
     return err
 
 
