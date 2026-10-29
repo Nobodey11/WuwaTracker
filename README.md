@@ -40,6 +40,15 @@ other Steam libraries), reads the history link from the game log and downloads y
 script. With **Settings → Automation → Auto-import** on, this happens by itself a few seconds after you open the history.
 A backup is made before every import.
 
+### Starts with Windows, syncs while you play
+With **Settings → Automation → Start with Windows** on (the default since 1.1), the tracker waits quietly in the tray.
+When Wuthering Waves starts, it starts watching; every time you open **Convene → History** in the game your new pulls
+are imported within seconds and a notification shows any new 5★. A small overlay shows your pity and the odds for your
+next pulls during the game, and when you close the game you get a session summary. Everything can be switched off in
+Settings → Automation. Reading the list of running programs and the game's log file is all it does; the game itself is
+never touched. Note: the game only hands out your history when you open it, so pulls show up after you open
+Convene → History.
+
 ## Prydwen.gg
 The **Prydwen** tab and the portraits use [Prydwen.gg](https://www.prydwen.gg/wuthering-waves)'s public pages. They are
 fetched only when needed, cached locally, credited, and linked back to the full guides. Nothing from Prydwen is

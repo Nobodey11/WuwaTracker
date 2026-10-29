@@ -118,6 +118,7 @@ The DP is exact. There's no Monte Carlo noise, and it runs in milliseconds.
 | 7 | Patch-proof game data layer (data file, auto-detect, online update, `tools/new_patch.py`) | ✅ v0.2 |
 | 8 | Portraits, Prydwen tab, Convene Simulator + animation/sounds, Codes tab, owned-outside-pulls | ✅ v0.3–v0.5 |
 | 9 | Roadmap 0.6 → 1.0 (section 8) | ✅ v1.0.0 (all items) |
+| 10 | Start with Windows/game, sync while playing, overlay, reminders (section 8b) | ✅ v1.1.0 |
 
 ## 8. Roadmap (0.6 → 1.0)
 
@@ -185,6 +186,19 @@ luck percentile (v0.1), reset timers in the header (v0.4.1).
 - Does the v0.5.1 game import work on the real PC? If not, fixing it comes before 0.6.
 - Is the app only for personal use, or should others install it easily? If the latter, move 1.0.9 forward.
 - Event calendar source (0.9.3): Prydwen, or maintained by hand in `game_data.json`.
+
+## 8b. 1.1: start with the game and sync automatically (done)
+
+1. Game detection: process list (Toolhelp32 on Windows, no extra packages), names configurable; start/stop events with
+   a grace poll so a restart doesn't end the session.
+2. One running copy (QLocalServer); `--tray` start; heavy pages built on first view.
+3. Start with Windows via HKCU\...\Run (no admin), path refreshed if the folder or .exe moves; Steam launch option as
+   an alternative.
+4. Session mode: log watcher only while the game runs (every 2 s), triggered by every new history opening (also the
+   same link), debounced, with retries.
+5. Notifications with 5★ names and 50/50 result, live refresh, overlay, sync reminders, session summary, optional
+   close-with-game / open-on-game.
+6. Verification: automated tests + headless UI checks; final check on the real PC with the game.
 
 ## 9. Risks
 

@@ -37,9 +37,10 @@ class GameImportWorker(QThread):
     not_found = Signal(list)                 # log files that were checked
     done = Signal(object, str)               # GameImportResult | None, error text
 
-    def __init__(self, game_dir, url, offset, existing):
+    def __init__(self, game_dir, url, offset, existing, retries: int = 0, retry_delay: float = 10.0):
         super().__init__()
         self.game_dir, self.url, self.offset, self.existing = game_dir, url, offset, existing
+        self.retries, self.retry_delay = retries, retry_delay
         self.found_in = None
 
     def run(self):
@@ -53,8 +54,17 @@ class GameImportWorker(QThread):
                     return
                 url, self.found_in = res.url, res.source
                 self.log.emit(f"Found the history link in {res.source}")
-            self.log.emit("Downloading your Convene records from the game server…")
-            result = game_import.import_from_game(url, self.offset, self.existing, log=self.log.emit)
+            for attempt in range(self.retries + 1):
+                self.log.emit("Downloading your Convene records from the game server…"
+                              + (f" (try {attempt + 1})" if attempt else ""))
+                try:
+                    result = game_import.import_from_game(url, self.offset, self.existing, log=self.log.emit)
+                    break
+                except game_import.ImportError_:
+                    # a link can show up in the log a moment before the server accepts it: wait and retry
+                    if attempt >= self.retries:
+                        raise
+                    time.sleep(self.retry_delay)
             self.done.emit(result, "")
         except Exception as e:
             self.done.emit(None, str(e))

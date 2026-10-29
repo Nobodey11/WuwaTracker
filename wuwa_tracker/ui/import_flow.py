@@ -40,14 +40,14 @@ class ImportActions:
             ReportDialog("Import check", msg + "\n\n" + import_check.summarize(problems), self).exec()
         self.ask_new_content(only_if_any=True)
 
-    def import_game(self, url: str | None = None, game_dir: str | None = None, auto: bool = False):
+    def import_game(self, url: str | None = None, game_dir: str | None = None, auto: bool = False, retries: int = 0):
         if getattr(self, "gw", None) is not None and self.gw.isRunning():
             return
         game_dir = game_dir or self.state.get("game_dir") or None
         off = game_import.SERVER_UTC_OFFSET.get(self.state.get("server_region"), 8)
         existing = self.state.storage.load(None)
         self.statusBar().showMessage("Import from game: starting…")
-        self.gw = GameImportWorker(game_dir, url, off, existing)
+        self.gw = GameImportWorker(game_dir, url, off, existing, retries=retries)
         self.gw.auto = auto
         self.gw.existing_snapshot = existing
         self.gw.log.connect(lambda s: self.statusBar().showMessage(s))
@@ -107,10 +107,26 @@ class ImportActions:
                     + import_check.check_ten_pulls(result.pulls, self._name))
         text = f"Imported {new} new pull(s) for player {result.player_id}."
         self.statusBar().showMessage(("Auto-import: " if auto else "Game import done: ") + text, 12000)
+        fives = []
+        if new:
+            known = {p.key for p in existing}
+            fresh = [p for p in result.pulls if p.key not in known]
+            stats = self.state.stats
+            for p in fresh:
+                if p.quality == 5:
+                    st = stats.get(p.pool_type)
+                    ev = next((f for f in (st.five_stars if st else []) if f.time == p.time and f.name == p.name), None)
+                    res = {"won": " (won the 50/50)", "lost": " (lost the 50/50)", "guaranteed": " (guaranteed)"}
+                    fives.append(p.name + (res.get(ev.result, "") if ev else ""))
+        if hasattr(self, "session"):
+            self.session.imported(new, [f.split(" (")[0] for f in fives])
         if auto:
-            if new and self.state.get("notify_imports"):
-                fives = [p.name for p in result.pulls if p.quality == 5]
-                self.notify("New pulls imported", text + (f" 5★: {', '.join(fives)}" if fives else ""))
+            if self.state.get("notify_imports"):
+                if new:
+                    self.notify(f"{new} new pull(s) imported", ("★5 " + ", ".join(fives)) if fives else
+                                "No 5★ this time. Odds for your next pulls are in the overlay / Tracker tab.")
+                else:
+                    self.statusBar().showMessage("Convene history checked: no new pulls.", 8000)
         else:
             report = text + "\n\n" + "\n".join(f"- {l.strip()}" for l in result.log if l.strip())
             if findings:

@@ -15,7 +15,7 @@ from .. import __version__
 from ..core import game_import, paths
 from . import theme as T
 from .assistant_tab import AssistantTab
-from .background import AppUpdateWorker, GameDataUpdateWorker, LogWatchWorker
+from .background import AppUpdateWorker, GameDataUpdateWorker
 from .calculator_tab import CalculatorTab
 from .calendar_tab import CalendarTab
 from .codes_tab import CodesTab
@@ -32,12 +32,31 @@ from .settings_tab import SettingsTab
 from .simulator_tab import SimulatorTab
 
 
+class LazyPage(QWidget):
+    """Builds its real page the first time it is shown (keeps start-up in the tray light)."""
+
+    def __init__(self, factory):
+        super().__init__()
+        self.factory, self.page = factory, None
+        lay = QVBoxLayout(self); lay.setContentsMargins(0, 0, 0, 0)
+
+    def ensure(self):
+        if self.page is None:
+            self.page = self.factory()
+            self.layout().addWidget(self.page)
+        return self.page
+
+    def showEvent(self, ev):
+        self.ensure()
+        super().showEvent(ev)
+
+
 class MainWindow(ImportActions, QMainWindow):
-    def __init__(self, state):
+    def __init__(self, state, start_hidden: bool = False):
         super().__init__()
         self.state = state
         self._quitting = False
-        self.watcher = None
+        self.start_hidden = start_hidden
         self.setWindowTitle("WuWa Pull Tracker")
         self.resize(1440, 900)
 
@@ -53,17 +72,18 @@ class MainWindow(ImportActions, QMainWindow):
         self.tabs = QTabWidget()
         self.codes_tab = CodesTab(state, lambda m: self.statusBar().showMessage(m, 15000))
         self.settings_tab = SettingsTab(state, status, self.check_gamedata, self.apply_automation)
+        lazy = lambda cls: LazyPage(lambda: cls(state))
         pages = [
             (OverviewTab(state), "Tracker"),
-            (HistoryTab(state), "Pull History"),
-            (CalculatorTab(state), "Probability"),
-            (PlannerTab(state), "Planner"),
-            (CollectionTab(state), "Collection"),
-            (CalendarTab(state), "Calendar"),
-            (PrydwenTab(state), "Prydwen"),
-            (SimulatorTab(state), "Simulator"),
+            (lazy(HistoryTab), "Pull History"),
+            (lazy(CalculatorTab), "Probability"),
+            (lazy(PlannerTab), "Planner"),
+            (lazy(CollectionTab), "Collection"),
+            (lazy(CalendarTab), "Calendar"),
+            (lazy(PrydwenTab), "Prydwen"),
+            (lazy(SimulatorTab), "Simulator"),
             (self.codes_tab, "Codes"),
-            (AssistantTab(state), "AI"),
+            (lazy(AssistantTab), "AI"),
             (self.settings_tab, "Settings"),
         ]
         for w, name in pages:
@@ -92,10 +112,13 @@ class MainWindow(ImportActions, QMainWindow):
         self.refresh_players()
         self.refresh_gd_label()
 
-        # tray
+        # tray + game session (start/stop detection, auto-import, overlay)
+        from .session import SessionController
         from .tray import Tray
         self.tray = Tray(self) if QSystemTrayIcon.isSystemTrayAvailable() else None
         self.release = None
+        self.session = SessionController(self, state)
+        self.session.status.connect(self._session_status)
 
         self.timer = QTimer(self); self.timer.timeout.connect(self.tick); self.timer.start(1000)
         self.slow = QTimer(self); self.slow.timeout.connect(self.slow_tick); self.slow.start(60_000)
@@ -106,7 +129,8 @@ class MainWindow(ImportActions, QMainWindow):
         if state.get("gamedata_autocheck") and state.get("gamedata_url"):
             QTimer.singleShot(800, lambda: self.check_gamedata(False))
         QTimer.singleShot(1200, lambda: self.ask_new_content(only_if_any=True))
-        QTimer.singleShot(1500, self.apply_automation)
+        QTimer.singleShot(0 if start_hidden else 1500, self.apply_automation)
+        QTimer.singleShot(1000, self.first_run_setup)
         QTimer.singleShot(2500, lambda: self.check_app_update(False))
         QTimer.singleShot(3000, self.slow_tick)
         QTimer.singleShot(3500, self.maybe_weekly_summary)
@@ -169,29 +193,50 @@ class MainWindow(ImportActions, QMainWindow):
             self.statusBar().showMessage(f"{title}: {text}", 15000)
 
     def apply_automation(self):
-        """(Re)start the tray icon and the log watcher according to the settings."""
+        """(Re)apply tray icon, game detection, auto-import and overlay settings."""
         if self.tray is not None:
-            self.tray.setVisible(bool(self.state.get("tray")))
-        want = bool(self.state.get("auto_import"))
-        if want and self.watcher is None:
-            self.watcher = LogWatchWorker(self.state.get("game_dir") or None)
-            self.watcher.link_found.connect(self._auto_link)
-            self.watcher.status.connect(lambda s: self.strip.watch_chip.setToolTip(s))
-            self.watcher.start()
-            self.strip.watch_chip.setText("● Auto-import on")
-            self.strip.watch_chip.setToolTip("Open Convene → History in the game and new pulls are imported automatically.")
-            self.strip.watch_chip.show()
-        elif not want and self.watcher is not None:
-            self.watcher.stop(); self.watcher.wait(2000)
-            self.watcher = None
-            self.strip.watch_chip.hide()
+            self.tray.setVisible(bool(self.state.get("tray")) or self.start_hidden)
+        self.session.apply()
 
-    def _auto_link(self, url):
-        self.statusBar().showMessage("New Convene history link found in the game log: importing…", 8000)
-        self.import_game(url=url, auto=True)
+    def _session_status(self, text, tip):
+        self.strip.watch_chip.setText(text)
+        self.strip.watch_chip.setToolTip(tip)
+        self.strip.watch_chip.setVisible(bool(text))
+        if self.tray is not None and text:
+            self.tray.set_status(text)
+
+    def page(self, i: int):
+        """The real widget of tab i (builds a lazy page if needed)."""
+        w = self.tabs.widget(i)
+        return w.ensure() if isinstance(w, LazyPage) else w
+
+    def show_window(self):
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def first_run_setup(self):
+        """First start of 1.1: turn on auto-import and 'start with Windows' once (both can be turned off)."""
+        if self.state.get("v11_setup"):
+            return
+        self.state.set("v11_setup", True)
+        self.state.set("auto_import", True)
+        self.state.set("tray", True)
+        from ..core import autostart
+        msg = "Auto-import is on: open Convene → History in the game and your pulls sync by themselves."
+        if autostart.supported():
+            try:
+                autostart.enable()
+                msg += " The tracker now also starts with Windows (quietly, in the tray)."
+            except OSError:
+                pass
+        self.settings_tab.load()
+        self.apply_automation()
+        self.notify("Automatic sync is on", msg + " Change it in Settings → Automation.")
 
     def closeEvent(self, ev):
-        if not self._quitting and self.state.get("close_to_tray") and self.tray is not None and self.tray.isVisible():
+        if not self._quitting and (self.state.get("close_to_tray") or self.session.in_game) \
+                and self.tray is not None and self.tray.isVisible():
             ev.ignore()
             self.hide()
             self.tray.notify("Still running", "WuWa Pull Tracker keeps running in the tray. Right-click the icon to quit.")
@@ -205,9 +250,7 @@ class MainWindow(ImportActions, QMainWindow):
         QApplication.quit()
 
     def _shutdown(self):
-        if self.watcher is not None:
-            self.watcher.stop(); self.watcher.wait(2000)
-            self.watcher = None
+        self.session.shutdown()
         if self.tray is not None:
             self.tray.hide()
         paths.release_lock(self.state.data_dir)

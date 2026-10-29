@@ -70,7 +70,10 @@ class SettingsTab(QWidget):
 
         # ---------------- automation, notifications, data folder
         c3, l3 = card(tr("Automation"))
-        self.auto_import = QCheckBox("Auto-import: watch the game log and import as soon as you open Convene → History")
+        self.autostart = QCheckBox("Start with Windows (quietly, in the tray)")
+        self.autostart.setToolTip("Adds the tracker to your Windows start-up programs (per user, no admin rights).")
+        self.game_detect = QCheckBox("Detect when Wuthering Waves starts and stops")
+        self.auto_import = QCheckBox("Auto-import: sync as soon as you open Convene → History in the game")
         self.tray = QCheckBox("Show a tray icon (reset timers, quick import)")
         self.close_tray = QCheckBox("Closing the window keeps the app running in the tray")
         self.n_codes = QCheckBox("Notify me about new redemption codes")
@@ -78,9 +81,26 @@ class SettingsTab(QWidget):
         self.n_imports = QCheckBox("Notify me when pulls were auto-imported")
         self.upd = QCheckBox("Check GitHub for app updates (once a day)")
         self.weekly = QCheckBox("Show the weekly summary on the first start of a week")
-        for w in (self.auto_import, self.tray, self.close_tray, self.n_codes, self.n_banners, self.n_imports, self.upd,
+        self.open_on_game = QCheckBox("Open the tracker window when the game starts")
+        self.overlay = QCheckBox("Show the pity overlay during the game (borderless/windowed mode)")
+        self.sync_rem = QCheckBox("Remind me to open Convene → History when nothing was synced")
+        self.close_game = QCheckBox("Close the tracker when the game closes")
+        for w in (self.autostart, self.game_detect, self.auto_import, self.open_on_game, self.overlay, self.sync_rem,
+                  self.close_game, self.tray, self.close_tray, self.n_codes, self.n_banners, self.n_imports, self.upd,
                   self.weekly):
             l3.addWidget(w)
+        prow = QHBoxLayout()
+        prow.addWidget(QLabel("Game program(s)"))
+        self.procs = QLineEdit()
+        self.procs.setPlaceholderText("Client-Win64-Shipping.exe, Wuthering Waves.exe")
+        self.procs.setToolTip("Names of the game's .exe as shown in Task Manager → Details, comma separated.")
+        prow.addWidget(self.procs, 1)
+        steam = QPushButton("Copy Steam launch option")
+        steam.setToolTip("Alternative to 'start with Windows': paste into Steam → Wuthering Waves → Properties → "
+                         "Launch options, so the tracker starts together with the game.")
+        steam.clicked.connect(self.copy_steam)
+        prow.addWidget(steam)
+        l3.addLayout(prow)
         save3 = QPushButton(tr("Save")); save3.setObjectName("primary"); save3.clicked.connect(self.save_automation)
         l3.addWidget(save3)
         l3.addSpacing(14)
@@ -155,6 +175,18 @@ class SettingsTab(QWidget):
         self.game_dir.setText(s.get("game_dir"))
         self.region.setCurrentText(s.get("server_region"))
         self.prydwen.setChecked(bool(s.get("prydwen_enabled")))
+        from ..core import autostart
+        self.autostart.setEnabled(autostart.supported())
+        try:
+            self.autostart.setChecked(autostart.is_enabled())
+        except OSError:
+            self.autostart.setChecked(False)
+        self.game_detect.setChecked(bool(s.get("game_detect")))
+        self.open_on_game.setChecked(bool(s.get("open_on_game")))
+        self.overlay.setChecked(bool(s.get("overlay")))
+        self.sync_rem.setChecked(bool(s.get("sync_reminder")))
+        self.close_game.setChecked(bool(s.get("close_with_game")))
+        self.procs.setText(s.get("game_processes") or "")
         self.auto_import.setChecked(bool(s.get("auto_import")))
         self.tray.setChecked(bool(s.get("tray")))
         self.close_tray.setChecked(bool(s.get("close_to_tray")))
@@ -181,13 +213,34 @@ class SettingsTab(QWidget):
     # ---------------- automation / data folder
     def save_automation(self):
         s = self.state
-        for key, box in (("auto_import", self.auto_import), ("tray", self.tray), ("close_to_tray", self.close_tray),
+        from ..core import autostart
+        if autostart.supported():
+            try:
+                (autostart.enable if self.autostart.isChecked() else autostart.disable)()
+            except OSError as e:
+                QMessageBox.warning(self, tr("Automation"), f"Couldn't change 'start with Windows': {e}")
+        s.set("game_processes", self.procs.text().strip())
+        for key, box in (("game_detect", self.game_detect), ("open_on_game", self.open_on_game),
+                         ("overlay", self.overlay), ("sync_reminder", self.sync_rem),
+                         ("close_with_game", self.close_game),
+                         ("auto_import", self.auto_import), ("tray", self.tray), ("close_to_tray", self.close_tray),
                          ("notify_codes", self.n_codes), ("notify_banners", self.n_banners),
                          ("notify_imports", self.n_imports), ("update_check", self.upd), ("weekly_summary", self.weekly)):
             s.set(key, box.isChecked())
         self.on_automation()
         self.on_saved("Automation settings saved." + (" Auto-import is watching the game log." if
                                                       self.auto_import.isChecked() else ""))
+
+    def copy_steam(self):
+        from PySide6.QtWidgets import QApplication
+        from ..core import autostart
+        QApplication.clipboard().setText(autostart.steam_launch_option())
+        QMessageBox.information(self, "Steam launch option",
+                                "Copied. In Steam: right-click Wuthering Waves → Properties → General → Launch options, "
+                                "paste, and close the window.\n\nSteam then starts the tracker (in the tray) together "
+                                "with the game.\n\nNote: on Windows, Steam doesn't handle commands like this in every version. If the "
+                                "game no longer starts, clear the launch option again. 'Start with Windows' is the "
+                                "reliable way and makes this unnecessary.")
 
     def change_data_dir(self, default=False):
         if default:

@@ -16,6 +16,8 @@ class Tray(QSystemTrayIcon):
         self.a_show = QAction(tr("Show window"), m); self.a_show.triggered.connect(self.show_window)
         self.a_import = QAction(tr("Import now"), m); self.a_import.triggered.connect(lambda: window.import_game())
         self.a_quit = QAction(tr("Quit"), m); self.a_quit.triggered.connect(window.quit_app)
+        self.a_status = QAction("", m); self.a_status.setEnabled(False)
+        m.addAction(self.a_status)
         self.a_daily = QAction("", m); self.a_daily.setEnabled(False)
         self.a_weekly = QAction("", m); self.a_weekly.setEnabled(False)
         for a in (self.a_daily, self.a_weekly):
@@ -35,14 +37,17 @@ class Tray(QSystemTrayIcon):
             self.show_window()
 
     def show_window(self):
-        self.win.showNormal()
-        self.win.raise_()
-        self.win.activateWindow()
+        self.win.show_window()
+
+    def set_status(self, text: str):
+        self.a_status.setText(text)
 
     def set_resets(self, daily: str, weekly: str):
         self.a_daily.setText(f"{tr('Daily reset')}: {daily}")
         self.a_weekly.setText(f"{tr('Weekly reset')}: {weekly}")
-        self.setToolTip(f"WuWa Pull Tracker\n{tr('Daily reset')}: {daily}\n{tr('Weekly reset')}: {weekly}")
+        status = self.a_status.text()
+        self.setToolTip(f"WuWa Pull Tracker" + (f"\n{status}" if status else "")
+                        + f"\n{tr('Daily reset')}: {daily}\n{tr('Weekly reset')}: {weekly}")
 
     def notify(self, title: str, text: str, ms: int = 8000):
         if self.isVisible() and self.supportsMessages():

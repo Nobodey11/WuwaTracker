@@ -36,7 +36,7 @@ def test_main_window_all_tabs(tmp_path, monkeypatch):
     for i in range(w.tabs.count()):
         w.tabs.setCurrentIndex(i)
         app.processEvents()
-    planner = w.tabs.widget(3)
+    planner = w.page(3)
     for j in range(planner.sub.count()):
         planner.sub.setCurrentIndex(j)
         app.processEvents()
@@ -44,7 +44,7 @@ def test_main_window_all_tabs(tmp_path, monkeypatch):
     assert "%" in planner.plan.big.text()
     planner.whatif.preset("won")
     assert planner.whatif.rows["Difference"].v.text() != "–"
-    sim = w.tabs.widget(7)
+    sim = w.page(7)
     sim.anim.setChecked(False)
     sim.convene(10)
     from wuwa_tracker.ui.share_card import render

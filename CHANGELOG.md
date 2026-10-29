@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.1.0 (2026-10-29): starts with Windows, syncs while you play
+- **Start with Windows** (Settings → Automation, per user, no admin rights): the tracker starts quietly in the tray
+  (`--tray`), and only the light parts of the app are loaded until you open the window. Turned on once
+  automatically on the first start of 1.1, together with auto-import.
+- **Game detection**: the tracker notices when Wuthering Waves starts and stops (it reads only the list of running
+  program names, like Task Manager; the game itself is never touched). The game's program names can be changed.
+- **Syncs while you play**: during the game the log is checked every 2 seconds. Every time you open
+  Convene → History (also again with the same link) your new pulls are imported, debounced to one import when you open
+  and close it quickly, with up to 2 retries when the link isn't active yet. The notification names your new 5★s and
+  the 50/50 result. Open pages refresh by themselves.
+- **Pull overlay** during the game: a small always-on-top card with pity, guarantee and the featured-5★ chance for the
+  next pull and the next 10, for the character and weapon banner. Drag to move; × hides it. Shows over borderless /
+  windowed mode, not exclusive full screen.
+- **Sync reminders**: after 20 minutes of play without a sync, and when the game closes without one.
+- **Session summary** when the game closes (new pulls, 5★s, play time); optional **close the tracker with the game**;
+  optional **open the window when the game starts**.
+- **One copy only**: starting the tracker again brings the running window to the front.
+- **Steam launch option** to copy from Settings, as an alternative to starting with Windows.
+- Status chip in the header and tray: "Waiting for Wuthering Waves" / "Game running · auto-import on".
+- Tests: 66 (game detection, start-with-Windows registry, re-opened history with the same link, import retries,
+  the session controller).
+
 ## 1.0.0 (2026-10-27): the whole roadmap (0.6 → 1.0)
 Everything from the 0.6–1.0 roadmap in PLAN.md, shipped together.
 

@@ -45,6 +45,15 @@ DEFAULTS = {
     "wishlist": [],               # [{name, kind, copies}]
     "sim_achievements": [],
     "sim_board": [],
+    # 1.1: start with Windows / the game
+    "game_detect": True,          # notice when Wuthering Waves starts and stops
+    "game_processes": "",         # empty = defaults (Client-Win64-Shipping.exe, Wuthering Waves.exe)
+    "open_on_game": False,        # open the window when the game starts (else stay in the tray)
+    "overlay": True,              # small always-on-top pity/odds overlay during the game
+    "overlay_pos": None,
+    "sync_reminder": True,        # remind to open Convene → History when nothing was imported
+    "close_with_game": False,     # quit the tracker when the game closes
+    "v11_setup": False,           # first start of 1.1 done (turns on auto-import + start with Windows once)
 }
 
 # Optional local file next to the app (git-ignored) with extra owned characters, e.g. {"Rebecca": 1}.
