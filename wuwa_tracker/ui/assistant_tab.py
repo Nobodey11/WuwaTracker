@@ -138,6 +138,12 @@ class AssistantTab(QWidget):
         self.new_chat()
         self.load_models()
 
+    def shutdown(self, ms: int = 6000):
+        """Wait for background requests to Ollama, so quitting never tears down a running thread."""
+        for th in (getattr(self, "lister", None), self.worker):
+            if th is not None and th.isRunning():
+                th.wait(ms)
+
     def eventFilter(self, obj, ev):
         from PySide6.QtCore import QEvent, Qt
         if obj is self.input and ev.type() == QEvent.KeyPress and ev.key() in (Qt.Key_Return, Qt.Key_Enter) \

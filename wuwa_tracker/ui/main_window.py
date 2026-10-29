@@ -251,6 +251,17 @@ class MainWindow(ImportActions, QMainWindow):
 
     def _shutdown(self):
         self.session.shutdown()
+        for i in range(self.tabs.count()):           # let background threads of built pages finish
+            w = self.tabs.widget(i)
+            page = w.page if isinstance(w, LazyPage) else w
+            if page is not None and hasattr(page, "shutdown"):
+                try:
+                    page.shutdown()
+                except RuntimeError:
+                    pass
+        for th in (getattr(self, "gw", None), getattr(self, "uw", None), getattr(self, "gdw", None)):
+            if th is not None and th.isRunning():
+                th.wait(3000)
         if self.tray is not None:
             self.tray.hide()
         paths.release_lock(self.state.data_dir)

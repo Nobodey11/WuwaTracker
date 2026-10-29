@@ -1,8 +1,13 @@
 # Changelog
 
+## 1.1.2 (2026-10-29): clean shutdown
+- Quitting right after opening the AI tab could crash on Windows while the app was still asking Ollama for its models.
+  The app now waits for its background tasks (Ollama, game import, update checks) before it closes. This was also what
+  stopped the GitHub release build.
+
 ## 1.1.1 (2026-10-29): release build fixed
-- The GitHub release build (Windows .exe) and the test check failed after all tests had passed; fixed, so the
-  1.1 features now come with a downloadable WuwaTracker-1.1.1-windows.zip.
+- The GitHub test check is green again (a Qt test is skipped on runners without Qt). The Windows release build still
+  failed; see 1.1.2.
 - Running the tests no longer turns on "start with Windows" on the PC that runs them.
 
 ## 1.1.0 (2026-10-29): starts with Windows, syncs while you play
