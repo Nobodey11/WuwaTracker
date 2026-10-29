@@ -27,7 +27,8 @@ def test_main_window_all_tabs(tmp_path, monkeypatch):
         pulls.append(Pull(1, 1000 + i % 3, q, name, t0 + timedelta(hours=i), 1, "1"))
     st.add_pulls(pulls)
     for k, v in {"player": "1", "prydwen_enabled": False, "auto_import": False, "update_check": False,
-                 "weekly_summary": False, "gamedata_autocheck": False, "tray": False}.items():
+                 "weekly_summary": False, "gamedata_autocheck": False, "tray": False,
+                 "v11_setup": True}.items():
         st.set_setting(k, v)
     st.add_income("2026-10-01", 500, player_id="1")
     state = AppState(st)

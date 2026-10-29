@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1 (2026-10-29): release build fixed
+- The GitHub release build (Windows .exe) and the test check failed after all tests had passed; fixed, so the
+  1.1 features now come with a downloadable WuwaTracker-1.1.1-windows.zip.
+- Running the tests no longer turns on "start with Windows" on the PC that runs them.
+
 ## 1.1.0 (2026-10-29): starts with Windows, syncs while you play
 - **Start with Windows** (Settings → Automation, per user, no admin rights): the tracker starts quietly in the tray
   (`--tray`), and only the light parts of the app are loaded until you open the window. Turned on once

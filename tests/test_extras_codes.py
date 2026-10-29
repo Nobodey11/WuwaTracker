@@ -9,6 +9,8 @@ FX = Path(__file__).parent / "fixtures"
 
 
 def test_extras_count_as_owned(tmp_path, monkeypatch):
+    import pytest
+    pytest.importorskip("PySide6")
     from wuwa_tracker.ui import state as st
     local = tmp_path / "my_characters.json"
     local.write_text(json.dumps({"Rebecca": 1}))
